@@ -15,6 +15,7 @@ set(SOURCES
     "${SRC_DIR}/io.cpp"
     "${SRC_DIR}/args.cpp"
     "${SRC_DIR}/common.cpp"
+    "${SRC_DIR}/lexer.cpp"
 )
 
 set(HEADER
@@ -22,6 +23,7 @@ set(HEADER
     "${SRC_DIR}/args.hpp"
     "${SRC_DIR}/common.hpp"
     "${SRC_DIR}/preprocessor.hpp"
+    "${SRC_DIR}/lexer.hpp"
     "extern/jlibc/jc_log.h"
 )
 

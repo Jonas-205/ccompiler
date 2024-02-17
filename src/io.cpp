@@ -14,7 +14,7 @@ std::string read_file(const std::string &path) {
     trace("Reading file %s", path.c_str());
     std::ifstream file_stream(path);
     if (!file_stream) {
-        error("Could not open file%s", path.c_str());
+        die("Could not open file%s", path.c_str());
     }
     std::stringstream buffer;
     buffer << file_stream.rdbuf();
@@ -27,7 +27,7 @@ std::string exec(const std::string &command) {
     std::string result;
     FILE *pipe = popen(command.c_str(), "r");
     if (!pipe) {
-        error("popen() failed!");
+        die("popen() failed!");
     }
     while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
         result += buffer.data();
@@ -35,7 +35,7 @@ std::string exec(const std::string &command) {
 
     auto status = pclose(pipe);
     if (status == -1) {
-        error("pclose() failed!");
+        die("pclose() failed!");
     }
 
     return result;
