@@ -14,7 +14,7 @@ std::string read_file(const std::string &path) {
     trace("Reading file %s", path.c_str());
     std::ifstream file_stream(path);
     if (!file_stream) {
-        die("Could not open file%s", path.c_str());
+        die("Could not open file: %s", path.c_str());
     }
     std::stringstream buffer;
     buffer << file_stream.rdbuf();

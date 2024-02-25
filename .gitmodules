@@ -1,3 +1,6 @@
 [submodule "extern/jlibc"]
 	path = extern/jlibc
 	url = git@github.com:Jonas-205/jlibc.git
+[submodule "extern/antlr4"]
+	path = extern/antlr4
+	url = https://github.com/antlr/antlr4.git
