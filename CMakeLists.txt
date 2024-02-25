@@ -33,6 +33,7 @@ set(HEADER
 
 set(VISITORS
     printVisitor
+    dotVisitor
 )
 
 list(TRANSFORM VISITORS PREPEND "${SRC_DIR}/visitors/")
@@ -43,14 +44,10 @@ foreach(VISITOR ${VISITORS})
 endforeach()
 
 set(AUTO_GENERATED_ANTLR
-    src/antlr/CBaseVisitor.cpp
-    src/antlr/CBaseVisitor.h
     src/antlr/CLexer.cpp
     src/antlr/CLexer.h
     src/antlr/CParser.cpp
     src/antlr/CParser.h
-    src/antlr/CVisitor.cpp
-    src/antlr/CVisitor.h
 )
 
 add_executable(${EXE} ${SOURCES} ${HEADER} ${AUTO_GENERATED_ANTLR})

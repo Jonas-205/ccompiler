@@ -3,27 +3,31 @@
 #include "io.hpp"
 #include "parser.hpp"
 #include "preprocessor.hpp"
+#include "visitors/dotVisitor.hpp"
 #include "visitors/printVisitor.hpp"
 
 using CCOMP::Arguments;
 using CCOMP::Parser::parse;
 
 void run(const Arguments &args) {
-    /* std::string file_content = preprocessor(args); */
+    std::string file_content = preprocessor(args);
 
-    /* if (args.stop_after_preprocessing) { */
-    /*     printf("%s", file_content.c_str()); */
-    /*     return; */
-    /* } */
-    std::string file_content = CCOMP::IO::read_file(args.source_path);
+    if (args.stop_after_preprocessing) {
+        printf("%s", file_content.c_str());
+        return;
+    }
 
     auto ast = parse(file_content);
     ast->file_location = args.source_path;
 
-    CCOMP::AST::PrintVisitor printer;
-    ast->accept(printer, nullptr);
+    // Print the AST
+    /* CCOMP::AST::PrintVisitor printer; */
+    /* ast->accept(printer, nullptr); */
 
-    /* die("Not implemented"); */
+    // Generate Visually
+    if (!args.dot_path.empty()) {
+        CCOMP::AST::DotVisitor::generate(*ast, args.dot_path);
+    }
 }
 
 int main(int argc, char **argv) {

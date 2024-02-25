@@ -13,3 +13,6 @@ _deps
 build/
 .idea/
 extern/antlr.jar
+src/antlr
+*.dot
+*.pdf

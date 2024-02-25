@@ -211,7 +211,8 @@ type returns  [ std::unique_ptr<Type> ast ]
 // Lexer
 
 WHITESPACE: (' ' | '\t' | '\r' | '\n') -> skip;
-COMMENT: '#' ~('\n'|'\r')* '\r'? '\n' -> skip;
+PRE_PROCESSOR_OUTPUT: '#' ~('\n'|'\r')* '\r'? '\n' -> skip;
+COMMENT: '//' ~('\n'|'\r')* '\r'? '\n' -> skip;
 
 EXTERN: 'extern';
 STATIC: 'static';
