@@ -32,7 +32,6 @@ set(HEADER
 )
 
 set(VISITORS
-    printVisitor
     dotVisitor
 )
 

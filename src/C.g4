@@ -10,7 +10,7 @@ using namespace CCOMP::AST;
 // Parser
 
 program returns [ std::unique_ptr<Program> ast ]
-    : (decls += declaration)*
+    : (decls += globalDeclaration)* EOF
     {
         $ast = std::make_unique<Program>(0, 0);
         for (int i = 0; i < $decls.size(); i++) {
@@ -54,14 +54,18 @@ returnStatement returns [ std::unique_ptr<Return> ast ]
     ;
 
 
-declaration returns [ std::unique_ptr<Declaration> ast ]
+globalDeclaration returns [ std::unique_ptr<Declaration> ast ]
     : var=globalVariableDeclaration
     {
         $ast = std::move($var.ast);
     }
-    | fn=functionDeclaration
+    | fn=functionDefinition
         {
             $ast = std::move($fn.ast);
+        }
+    | decl=functionDeclaration
+        {
+            $ast = std::move($decl.ast);
         }
     ;
 
@@ -149,10 +153,21 @@ parameterDeclaration returns [ std::unique_ptr<ParameterDeclaration> ast ]
     }
     ;
 
-functionDeclaration returns [ std::unique_ptr<FunctionDeclaration> ast ]
+functionDefinition returns [ std::unique_ptr<FunctionDefinition> ast ]
     : (vis=visibility)? type name=identifier LPAREN (args+=parameterDeclaration (COMMA args+=parameterDeclaration)*)? RPAREN block
     {
-        $ast = std::make_unique<FunctionDeclaration>($type.ast->get_line(), $type.ast->get_column(), std::move($name.ast), std::move($type.ast), std::move($block.ast));
+        $ast = std::make_unique<FunctionDefinition>($type.ast->get_line(), $type.ast->get_column(), std::move($name.ast), std::move($type.ast), std::move($block.ast));
+        for (int i = 0; i < $args.size(); i++) {
+            $ast->add_parameter(std::move($args[i]->ast));
+        }
+        if ($vis.ctx != nullptr) { $ast->is_public = $vis.is_public; }
+    }
+    ;
+
+functionDeclaration returns [ std::unique_ptr<FunctionDeclaration> ast ]
+    : (vis=visibility)? type name=identifier LPAREN (args+=parameterDeclaration (COMMA args+=parameterDeclaration)*)? RPAREN SEMICOLON
+    {
+        $ast = std::make_unique<FunctionDeclaration>($type.ast->get_line(), $type.ast->get_column(), std::move($name.ast), std::move($type.ast));
         for (int i = 0; i < $args.size(); i++) {
             $ast->add_parameter(std::move($args[i]->ast));
         }
@@ -190,23 +205,25 @@ globalVariableDeclaration returns [ std::unique_ptr<VariableDeclaration> ast ]
     }
     ;
 
-type returns  [ std::unique_ptr<Type> ast ]
+type returns [ std::unique_ptr<Type> ast ]
+    : t=primitiveType
+    {
+        $ast = std::move($t.ast);
+    }
+    ;
+
+primitiveType returns [ std::unique_ptr <PrimitiveType> ast ]
     : INT
     {
         Token *symbol = $ctx->INT()->getSymbol();
-        $ast = std::make_unique<Type>(symbol->getLine(), symbol->getCharPositionInLine(), Type::PrimitiveType::INT);
+        $ast = std::make_unique<PrimitiveType>(symbol->getLine(), symbol->getCharPositionInLine(), PrimitiveType::Primitive::INT);
     }
     | VOID
     {
         Token *symbol = $ctx->VOID()->getSymbol();
-        $ast = std::make_unique<Type>(symbol->getLine(), symbol->getCharPositionInLine(), Type::PrimitiveType::VOID);
+        $ast = std::make_unique<PrimitiveType>(symbol->getLine(), symbol->getCharPositionInLine(), PrimitiveType::Primitive::VOID);
     }
-    | name=identifier
-        {
-            $ast = std::make_unique<Type>($name.ast->get_line(), $name.ast->get_column(), std::move($name.ast));
-        }
     ;
-
 
 // Lexer
 

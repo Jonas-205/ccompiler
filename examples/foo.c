@@ -1,8 +1,6 @@
 static int c = 3;
 
-static int bar() {
-    return 4;
-}
+static int bar();
 
 extern int foo(int a, int b) {
     int e = 5;
@@ -11,4 +9,8 @@ extern int foo(int a, int b) {
 
 int main(void) {
     return foo(2, 3);
+}
+
+static int bar() {
+    return 4;
 }

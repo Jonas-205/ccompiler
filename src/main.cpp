@@ -4,7 +4,6 @@
 #include "parser.hpp"
 #include "preprocessor.hpp"
 #include "visitors/dotVisitor.hpp"
-#include "visitors/printVisitor.hpp"
 
 using CCOMP::Arguments;
 using CCOMP::Parser::parse;
@@ -19,10 +18,6 @@ void run(const Arguments &args) {
 
     auto ast = parse(file_content);
     ast->file_location = args.source_path;
-
-    // Print the AST
-    /* CCOMP::AST::PrintVisitor printer; */
-    /* ast->accept(printer, nullptr); */
 
     // Generate Visually
     if (!args.dot_path.empty()) {

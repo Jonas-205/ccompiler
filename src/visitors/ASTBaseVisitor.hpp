@@ -25,7 +25,7 @@ class ASTBaseVisitor : public ASTVisitor {
     void *visit(Identifier &node, void *args) override {
         return nullptr;
     }
-    void *visit(Type &node, void *args) override {
+    void *visit(PrimitiveType &node, void *args) override {
         return nullptr;
     }
     void *visit(VariableDeclaration &node, void *args) override {
@@ -43,13 +43,21 @@ class ASTBaseVisitor : public ASTVisitor {
         }
         return nullptr;
     }
-    void *visit(FunctionDeclaration &node, void *args) override {
+    void *visit(FunctionDefinition &node, void *args) override {
         node.type->accept(*this, args);
         node.name->accept(*this, args);
         for (auto &param : node.parameters) {
             param->accept(*this, args);
         }
         node.body->accept(*this, args);
+        return nullptr;
+    }
+    void *visit(FunctionDeclaration &node, void *args) override {
+        node.type->accept(*this, args);
+        node.name->accept(*this, args);
+        for (auto &param : node.parameters) {
+            param->accept(*this, args);
+        }
         return nullptr;
     }
     void *visit(FunctionCall &node, void *args) override {

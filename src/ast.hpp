@@ -76,41 +76,38 @@ class Identifier : public AST {
 
 class Type : public AST {
    public:
-    enum class PrimitiveType {
+    Type(uint32_t line, uint32_t column) : AST(line, column) {
+    }
+};
+
+class PrimitiveType : public Type {
+   public:
+    enum class Primitive {
         NONE,
         VOID,
         INT,
     };
 
-    Type(uint32_t line, uint32_t column, std::unique_ptr<Identifier> name)
-        : AST(line, column), id(std::move(name)), t(PrimitiveType::NONE) {
-    }
-
-    Type(uint32_t line, uint32_t column, PrimitiveType name)
-        : AST(line, column), id(nullptr), t(name) {
+    PrimitiveType(uint32_t line, uint32_t column, Primitive name)
+        : Type(line, column), primitive(name) {
     }
 
     AST_VISIT_METHODS()
 
-    std::string name() const {
-        if (id) {
-            return id->name;
-        }
-
-        switch (t) {
-            case PrimitiveType::VOID:
+    std::string to_string() const {
+        switch (primitive) {
+            case Primitive::VOID:
                 return "void";
-            case PrimitiveType::INT:
+            case Primitive::INT:
                 return "int";
             default:
-                die("Invalid type");
+                die("Invalid primitive type");
                 return "";
         }
     }
 
    public:
-    PrimitiveType t;
-    std::unique_ptr<Identifier> id;
+    Primitive primitive;
 };
 
 class Declaration : public AST {
@@ -172,11 +169,11 @@ class FunctionCall : public AST {
     std::vector<std::unique_ptr<AST>> arguments;
 };
 
-class FunctionDeclaration : public Declaration {
+class FunctionDefinition : public Declaration {
    public:
-    FunctionDeclaration(uint32_t line, uint32_t column,
-                        std::unique_ptr<Identifier> name,
-                        std::unique_ptr<Type> type, std::unique_ptr<Block> body)
+    FunctionDefinition(uint32_t line, uint32_t column,
+                       std::unique_ptr<Identifier> name,
+                       std::unique_ptr<Type> type, std::unique_ptr<Block> body)
         : Declaration(line, column, std::move(name), std::move(type)),
           parameters(),
           body(std::move(body)) {
@@ -191,6 +188,25 @@ class FunctionDeclaration : public Declaration {
    public:
     std::vector<std::unique_ptr<ParameterDeclaration>> parameters;
     std::unique_ptr<Block> body;
+};
+
+class FunctionDeclaration : public Declaration {
+   public:
+    FunctionDeclaration(uint32_t line, uint32_t column,
+                        std::unique_ptr<Identifier> name,
+                        std::unique_ptr<Type> type)
+        : Declaration(line, column, std::move(name), std::move(type)),
+          parameters() {
+    }
+
+    AST_VISIT_METHODS()
+
+    void add_parameter(std::unique_ptr<ParameterDeclaration> parameter) {
+        parameters.push_back(std::move(parameter));
+    }
+
+   public:
+    std::vector<std::unique_ptr<ParameterDeclaration>> parameters;
 };
 
 class Program : public AST {

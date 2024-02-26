@@ -35,7 +35,7 @@ void DotVisitor::generate(Program &node, const std::string &output_file) {
 
 void *DotVisitor::visit(Program &node, void *args) {
     int id = node_counter++;
-    declare_node(id, "Program");
+    declare_node(id, node.file_location);
 
     node_stack.push(id);
     return ASTBaseVisitor::visit(node, args);
@@ -53,7 +53,11 @@ void *DotVisitor::visit(Program &node, void *args) {
 
 
 void *DotVisitor::visit(FunctionDeclaration &node, void *args) {
-    GENERATE("Function");
+    GENERATE("Function Decl");
+}
+
+void *DotVisitor::visit(FunctionDefinition &node, void *args) {
+    GENERATE("Function Def");
 }
 
 void *DotVisitor::visit(Block &node, void *args) {
@@ -68,8 +72,8 @@ void *DotVisitor::visit(Identifier &node, void *args) {
     GENERATE(node.name);
 }
 
-void *DotVisitor::visit(Type &node, void *args) {
-    GENERATE(node.name());
+void *DotVisitor::visit(PrimitiveType &node, void *args) {
+    GENERATE(node.to_string());
 }
 
 void *DotVisitor::visit(VariableDeclaration &node, void *args) {
