@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -74,54 +75,146 @@ class Identifier : public AST {
     std::string name;
 };
 
-class Type : public AST {
+class Type : public virtual AST {
    public:
     Type(uint32_t line, uint32_t column) : AST(line, column) {
     }
+
+    void set_array_dimensions(int dimensions) {
+        array_dimensions = dimensions;
+        array_sizes.resize(dimensions);
+    }
+
+    void set_array_dimension(int i, std::unique_ptr<AST> dimension) {
+        if (i >= array_sizes.size()) {
+            die("Invalid array dimension: %d", i);
+        }
+        array_sizes[i] = std::move(dimension);
+    }
+
+   public:
+    bool is_pointer = false;
+    int array_dimensions = 0;
+    std::vector<std::unique_ptr<AST>> array_sizes;
 };
 
-class PrimitiveType : public Type {
+class NamedType : public Type {
    public:
-    enum class Primitive {
-        NONE,
-        VOID,
-        INT,
-    };
-
-    PrimitiveType(uint32_t line, uint32_t column, Primitive name)
-        : Type(line, column), primitive(name) {
+    NamedType(uint32_t line, uint32_t column, std::unique_ptr<Identifier> name)
+        : Type(line, column), AST(line, column) {
+        this->name = name->name;
     }
 
     AST_VISIT_METHODS()
 
-    std::string to_string() const {
-        switch (primitive) {
-            case Primitive::VOID:
-                return "void";
-            case Primitive::INT:
-                return "int";
-            default:
-                die("Invalid primitive type");
-                return "";
+   public:
+    std::string name;
+};
+
+class PrimitiveType : public Type {
+   public:
+    enum class KeyWords {
+        VOID,
+        SIGNED,
+        UNSIGNED,
+        CHAR,
+        SHORT,
+        INT,
+        LONG,
+        VA_LIST,
+    };
+
+    PrimitiveType(uint32_t line, uint32_t column)
+        : Type(line, column), AST(line, column) {
+    }
+
+    AST_VISIT_METHODS()
+
+    void add_keyword(KeyWords k) {
+        keywords.push_back(k);
+    }
+
+    [[nodiscard]] std::string to_string() const {
+        std::stringstream s;
+        for (KeyWords k : keywords) {
+            switch (k) {
+                case KeyWords::VOID:
+                    s << "void ";
+                    break;
+                case KeyWords::SIGNED:
+                    s << "signed ";
+                    break;
+                case KeyWords::UNSIGNED:
+                    s << "unsigned ";
+                    break;
+                case KeyWords::CHAR:
+                    s << "char ";
+                    break;
+                case KeyWords::SHORT:
+                    s << "short ";
+                    break;
+                case KeyWords::INT:
+                    s << "int ";
+                    break;
+                case KeyWords::LONG:
+                    s << "long ";
+                    break;
+                case KeyWords::VA_LIST:
+                    s << "va_list ";
+                    break;
+            }
         }
+        return s.str();
     }
 
    public:
-    Primitive primitive;
+    std::vector<KeyWords> keywords;
 };
 
-class Declaration : public AST {
+class Declaration : public virtual AST {
    public:
-    Declaration(uint32_t line, uint32_t column,
-                std::unique_ptr<Identifier> name, std::unique_ptr<Type> type)
-        : AST(line, column), name(std::move(name)), type(std::move(type)) {
+    Declaration(uint32_t line, uint32_t column, std::unique_ptr<AST> name,
+                std::unique_ptr<Type> type)
+        : AST(line, column),
+          name(std::move(name)),
+          m_type(std::move(type)),
+          m_type_ref(nullptr) {
+    }
+
+    Declaration(uint32_t line, uint32_t column, std::unique_ptr<AST> name,
+                Type *type)
+        : AST(line, column),
+          name(std::move(name)),
+          m_type(nullptr),
+          m_type_ref(type) {
     }
 
     bool is_public = true;
 
+    Type *type() {
+        if (m_type) {
+            return m_type.get();
+        }
+        return m_type_ref;
+    }
+
    public:
-    std::unique_ptr<Identifier> name;
-    std::unique_ptr<Type> type;
+    std::unique_ptr<AST> name;
+
+   private:
+    std::unique_ptr<Type> m_type;
+    Type *m_type_ref;
+};
+
+class TypeDef : public Declaration {
+   public:
+    TypeDef(uint32_t line, uint32_t column, std::unique_ptr<Type> org,
+            std::unique_ptr<NamedType> named)
+        : Declaration(line, column, std::move(named), std::move(org)),
+          AST(line, column) {
+    }
+
+    AST_VISIT_METHODS();
 };
 
 class VariableDeclaration : public Declaration {
@@ -130,6 +223,7 @@ class VariableDeclaration : public Declaration {
                         std::unique_ptr<Identifier> name,
                         std::unique_ptr<Type> type, std::unique_ptr<AST> value)
         : Declaration(line, column, std::move(name), std::move(type)),
+          AST(line, column),
           value(std::move(value)) {
     }
 
@@ -145,10 +239,27 @@ class ParameterDeclaration : public Declaration {
     ParameterDeclaration(uint32_t line, uint32_t column,
                          std::unique_ptr<Identifier> name,
                          std::unique_ptr<Type> type)
-        : Declaration(line, column, std::move(name), std::move(type)) {
+        : Declaration(line, column, std::move(name), std::move(type)),
+          AST(line, column) {
     }
 
     AST_VISIT_METHODS()
+};
+
+class ArrayInitializationList : public AST {
+   public:
+    ArrayInitializationList(uint32_t line, uint32_t column)
+        : AST(line, column), values() {
+    }
+
+    AST_VISIT_METHODS()
+
+    void add_value(std::unique_ptr<AST> value) {
+        values.push_back(std::move(value));
+    }
+
+   public:
+    std::vector<std::unique_ptr<AST>> values;
 };
 
 class FunctionCall : public AST {
@@ -175,6 +286,7 @@ class FunctionDefinition : public Declaration {
                        std::unique_ptr<Identifier> name,
                        std::unique_ptr<Type> type, std::unique_ptr<Block> body)
         : Declaration(line, column, std::move(name), std::move(type)),
+          AST(line, column),
           parameters(),
           body(std::move(body)) {
     }
@@ -196,6 +308,7 @@ class FunctionDeclaration : public Declaration {
                         std::unique_ptr<Identifier> name,
                         std::unique_ptr<Type> type)
         : Declaration(line, column, std::move(name), std::move(type)),
+          AST(line, column),
           parameters() {
     }
 
@@ -224,6 +337,50 @@ class Program : public AST {
    public:
     std::string file_location;
     std::vector<std::unique_ptr<AST>> declarations;
+};
+
+class UnaryExpression : public AST {
+   public:
+    enum class Operator {
+        NONE = 0,
+        DEREFERENCE,
+        ADDRESS,
+    };
+
+    UnaryExpression(uint32_t line, uint32_t column, std::unique_ptr<AST> value,
+                    Operator op)
+        : AST(line, column), value(std::move(value)), op(op) {
+    }
+
+    AST_VISIT_METHODS()
+
+    std::string op_to_str() {
+        switch (op) {
+            case Operator::DEREFERENCE:
+                return "deref";
+            case Operator::ADDRESS:
+                return "addr of";
+            default:
+                die("Invalid operator");
+                return "";
+        }
+    }
+
+    static inline Operator str_to_op(const std::string &s) {
+        switch (s[0]) {
+            case '*':
+                return Operator::DEREFERENCE;
+            case '&':
+                return Operator::ADDRESS;
+            default:
+                die("Invalid operator: %s", s.c_str());
+                return Operator::NONE;
+        }
+    }
+
+   public:
+    std::unique_ptr<AST> value;
+    Operator op;
 };
 
 class BinaryExpression : public AST {
@@ -298,6 +455,76 @@ class Return : public AST {
 
    public:
     std::unique_ptr<AST> value;
+};
+
+class StructDeclaration : public Declaration, public Type {
+   public:
+    StructDeclaration(uint32_t line, uint32_t column,
+                      std::unique_ptr<Identifier> name)
+        : Declaration(line, column, std::move(name), this),
+          Type(line, column),
+          AST(line, column) {
+    }
+
+    AST_VISIT_METHODS()
+};
+
+class StructDefinition : public StructDeclaration {
+   public:
+    StructDefinition(uint32_t line, uint32_t column,
+                     std::unique_ptr<Identifier> name)
+        : StructDeclaration(line, column, std::move(name)), AST(line, column) {
+    }
+
+    AST_VISIT_METHODS()
+
+    void add_member(std::unique_ptr<VariableDeclaration> member) {
+        members.push_back(std::move(member));
+    }
+
+   public:
+    std::vector<std::unique_ptr<VariableDeclaration>> members;
+};
+
+class UnionDeclaration : public Declaration, public Type {
+   public:
+    UnionDeclaration(uint32_t line, uint32_t column,
+                     std::unique_ptr<Identifier> name)
+        : Declaration(line, column, std::move(name), this),
+          Type(line, column),
+          AST(line, column) {
+    }
+
+    AST_VISIT_METHODS()
+};
+
+class UnionDefinition : public UnionDeclaration {
+   public:
+    UnionDefinition(uint32_t line, uint32_t column,
+                    std::unique_ptr<Identifier> name)
+        : UnionDeclaration(line, column, std::move(name)), AST(line, column) {
+    }
+
+    AST_VISIT_METHODS()
+
+    void add_member(std::unique_ptr<VariableDeclaration> member) {
+        members.push_back(std::move(member));
+    }
+
+   public:
+    std::vector<std::unique_ptr<VariableDeclaration>> members;
+};
+
+class SizeOf : public AST {
+   public:
+    SizeOf(uint32_t line, uint32_t column, std::unique_ptr<Type> type)
+        : AST(line, column), type(std::move(type)) {
+    }
+
+    AST_VISIT_METHODS()
+
+   public:
+    std::unique_ptr<Type> type;
 };
 
 #undef AST_VISIT_METHODS

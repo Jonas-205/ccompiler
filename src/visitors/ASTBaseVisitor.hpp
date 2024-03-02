@@ -26,10 +26,15 @@ class ASTBaseVisitor : public ASTVisitor {
         return nullptr;
     }
     void *visit(PrimitiveType &node, void *args) override {
+        for (auto &arr: node.array_sizes) {
+            if (arr) {
+                arr->accept(*this, args);
+            }
+        }
         return nullptr;
     }
     void *visit(VariableDeclaration &node, void *args) override {
-        node.type->accept(*this, args);
+        node.type()->accept(*this, args);
         node.name->accept(*this, args);
         if (node.value) {
             node.value->accept(*this, args);
@@ -37,14 +42,14 @@ class ASTBaseVisitor : public ASTVisitor {
         return nullptr;
     }
     void *visit(ParameterDeclaration &node, void *args) override {
-        node.type->accept(*this, args);
+        node.type()->accept(*this, args);
         if (node.name) {
             node.name->accept(*this, args);
         }
         return nullptr;
     }
     void *visit(FunctionDefinition &node, void *args) override {
-        node.type->accept(*this, args);
+        node.type()->accept(*this, args);
         node.name->accept(*this, args);
         for (auto &param : node.parameters) {
             param->accept(*this, args);
@@ -53,7 +58,7 @@ class ASTBaseVisitor : public ASTVisitor {
         return nullptr;
     }
     void *visit(FunctionDeclaration &node, void *args) override {
-        node.type->accept(*this, args);
+        node.type()->accept(*this, args);
         node.name->accept(*this, args);
         for (auto &param : node.parameters) {
             param->accept(*this, args);
@@ -67,6 +72,10 @@ class ASTBaseVisitor : public ASTVisitor {
         }
         return nullptr;
     }
+    void *visit(UnaryExpression &node, void *args) override {
+        node.value->accept(*this, args);
+        return nullptr;
+    }
     void *visit(BinaryExpression &node, void *args) override {
         node.left->accept(*this, args);
         node.right->accept(*this, args);
@@ -76,6 +85,72 @@ class ASTBaseVisitor : public ASTVisitor {
         if (node.value) {
             node.value->accept(*this, args);
         }
+        return nullptr;
+    }
+    void *visit(TypeDef &node, void *args) override {
+        node.type()->accept(*this, args);
+        node.name->accept(*this, args);
+        return nullptr;
+    }
+    void *visit(NamedType &node, void *args) override {
+        for (auto &arr: node.array_sizes) {
+            if (arr) {
+                arr->accept(*this, args);
+            }
+        }
+        return nullptr;
+    }
+    void *visit(StructDefinition &node, void *args) override {
+        node.name->accept(*this, args);
+        for (auto &field : node.members) {
+            field->accept(*this, args);
+        }
+        for (auto &arr: node.array_sizes) {
+            if (arr) {
+                arr->accept(*this, args);
+            }
+        }
+        return nullptr;
+    }
+    void *visit(StructDeclaration &node, void *args) override {
+        node.name->accept(*this, args);
+
+        for (auto &arr: node.array_sizes) {
+            if (arr) {
+                arr->accept(*this, args);
+            }
+        }
+        return nullptr;
+    }
+    void *visit(UnionDefinition &node, void *args) override {
+        node.name->accept(*this, args);
+        for (auto &field : node.members) {
+            field->accept(*this, args);
+        }
+        for (auto &arr: node.array_sizes) {
+            if (arr) {
+                arr->accept(*this, args);
+            }
+        }
+        return nullptr;
+    }
+    void *visit(UnionDeclaration &node, void *args) override {
+        node.name->accept(*this, args);
+        for (auto &arr: node.array_sizes) {
+            if (arr) {
+                arr->accept(*this, args);
+            }
+        }
+        return nullptr;
+    }
+    void *visit(ArrayInitializationList &node, void *args) override {
+        for (auto &val : node.values) {
+            val->accept(*this, args);
+        }
+        return nullptr;
+    }
+    void *visit(SizeOf &node, void *args) override {
+        node.type->accept(*this, args);
         return nullptr;
     }
 };

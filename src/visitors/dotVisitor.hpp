@@ -18,7 +18,16 @@ class DotVisitor : public ASTBaseVisitor {
     void *visit(FunctionDefinition &node, void *args) override;
     void *visit(FunctionDeclaration &node, void *args) override;
     void *visit(FunctionCall &node, void *args) override;
+    void *visit(UnaryExpression &node, void *args) override;
     void *visit(BinaryExpression &node, void *args) override;
     void *visit(Return &node, void *args) override;
+    void *visit(TypeDef &node, void *args) override;
+    void *visit(NamedType &node, void *args) override;
+    void *visit(StructDefinition &node, void *args) override;
+    void *visit(StructDeclaration &node, void *args) override;
+    void *visit(ArrayInitializationList &node, void *args) override;
+    void *visit(UnionDefinition &node, void *args) override;
+    void *visit(UnionDeclaration &node, void *args) override;
+    void *visit(SizeOf &node, void *args) override;
 };
 }  // namespace CCOMP::AST

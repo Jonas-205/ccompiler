@@ -3,6 +3,7 @@ grammar C;
 @parser::header {
 #include "ast.hpp"
 #include "memory"
+#include "common.hpp"
 using namespace CCOMP::AST;
 }
 
@@ -32,11 +33,11 @@ block returns [ std::unique_ptr<Block> ast ]
 
 
 statement returns [ std::unique_ptr<AST> ast ]
-    : variableDeclaration
+    : variableDeclaration SEMICOLON
         {
             $ast = std::move($variableDeclaration.ast);
         }
-    | returnStatement
+    | returnStatement SEMICOLON
         {
             $ast = std::move($returnStatement.ast);
         }
@@ -44,7 +45,7 @@ statement returns [ std::unique_ptr<AST> ast ]
 
 
 returnStatement returns [ std::unique_ptr<Return> ast ]
-    : RETURN (exp=expression)? SEMICOLON
+    : RETURN (exp=expression)?
     {
         std::unique_ptr<AST> e = nullptr;
         if ($exp.ctx != nullptr) { e = std::move($exp.ast); }
@@ -55,7 +56,7 @@ returnStatement returns [ std::unique_ptr<Return> ast ]
 
 
 globalDeclaration returns [ std::unique_ptr<Declaration> ast ]
-    : var=globalVariableDeclaration
+    : var=globalVariableDeclaration SEMICOLON
     {
         $ast = std::move($var.ast);
     }
@@ -63,19 +64,63 @@ globalDeclaration returns [ std::unique_ptr<Declaration> ast ]
         {
             $ast = std::move($fn.ast);
         }
-    | decl=functionDeclaration
+    | decl=functionDeclaration SEMICOLON
         {
             $ast = std::move($decl.ast);
         }
+    | sdc=structDeclaration SEMICOLON
+    {
+        $ast = std::move($sdc.ast);
+    }
+    | sdf=structDefinition SEMICOLON
+    {
+        $ast = std::move($sdf.ast);
+    }
+    | ud=unionDeclaration SEMICOLON
+    {
+        $ast = std::move($ud.ast);
+    }
+    | udf=unionDefinition SEMICOLON
+    {
+        $ast = std::move($udf.ast);
+    }
+    | td=typedef SEMICOLON
+        {
+            $ast = std::move($td.ast);
+        }
     ;
 
+typedef returns [ std::unique_ptr<TypeDef> ast ]
+    : TYPEDEF type namedType
+    {
+        Token *symbol = $ctx->TYPEDEF()->getSymbol();
+        $ast = std::make_unique<TypeDef>(symbol->getLine(), symbol->getCharPositionInLine(), std::move($type.ast), std::move($namedType.ast));
+    }
+    ;
 
 expression returns [ std::unique_ptr<AST> ast ]
     : add=additiveExpression
     {
         $ast = std::move($add.ast);
     }
+    | ail=arrayInitializerList
+    {
+        $ast = std::move($ail.ast);
+    }
     ;
+
+arrayInitializerList returns [ std::unique_ptr<ArrayInitializationList> ast ]
+    : LBRACE (item+=additiveExpression (COMMA item+=additiveExpression)*)? RBRACE
+    {
+        Token *symbol = $ctx->LBRACE()->getSymbol();
+        $ast = std::make_unique<ArrayInitializationList>(symbol->getLine(), symbol->getCharPositionInLine());
+
+        for (int i = 0; i < $item.size(); i++) {
+            $ast->add_value(std::move($item[i]->ast));
+        }
+    }
+    ;
+
 
 additiveExpression returns [ std::unique_ptr<AST> ast ]
     : operands+=multiplicativeExpression
@@ -93,8 +138,8 @@ additiveExpression returns [ std::unique_ptr<AST> ast ]
     ;
 
 multiplicativeExpression returns [ std::unique_ptr<AST> ast ]
-    : operands+=factor
-        ( operators+=( STAR | SLASH ) operands+=factor )*
+    : operands+=unary
+        ( operators+=( STAR | SLASH ) operands+=unary )*
     {
         $ast = std::move($operands[0]->ast);
 
@@ -105,6 +150,21 @@ multiplicativeExpression returns [ std::unique_ptr<AST> ast ]
             $ast = std::make_unique<BinaryExpression>($ast->get_line(), $ast->get_column(), std::move($ast), std::move(right), op);
 
         }
+    }
+    ;
+
+unary returns [ std::unique_ptr<AST> ast ]
+    : factor
+    {
+        $ast = std::move($factor.ast);
+    }
+    | AND addr=factor  // addr of
+    {
+        $ast = std::make_unique<UnaryExpression>($addr.ast->get_line(), $addr.ast->get_column(), std::move($addr.ast), UnaryExpression::Operator::ADDRESS);
+    }
+    | STAR deref=factor // deref
+    {
+        $ast = std::make_unique<UnaryExpression>($deref.ast->get_line(), $deref.ast->get_column(), std::move($deref.ast), UnaryExpression::Operator::DEREFERENCE);
     }
     ;
 
@@ -120,6 +180,18 @@ factor returns [ std::unique_ptr<AST> ast ]
     | fn=functionCall
     {
         $ast = std::move($fn.ast);
+    }
+    | so=sizeof
+    {
+        $ast = std::move($so.ast);
+    }
+    ;
+
+sizeof  returns [ std::unique_ptr<SizeOf> ast ]
+    : SIZEOF_KEY LPAREN t=type RPAREN
+    {
+        Token *symbol = $ctx->SIZEOF_KEY()->getSymbol();
+        $ast = std::make_unique<SizeOf>(symbol->getLine(), symbol->getCharPositionInLine(), std::move($t.ast));
     }
     ;
 
@@ -165,7 +237,7 @@ functionDefinition returns [ std::unique_ptr<FunctionDefinition> ast ]
     ;
 
 functionDeclaration returns [ std::unique_ptr<FunctionDeclaration> ast ]
-    : (vis=visibility)? type name=identifier LPAREN (args+=parameterDeclaration (COMMA args+=parameterDeclaration)*)? RPAREN SEMICOLON
+    : (vis=visibility)? type name=identifier LPAREN (args+=parameterDeclaration (COMMA args+=parameterDeclaration)*)? RPAREN
     {
         $ast = std::make_unique<FunctionDeclaration>($type.ast->get_line(), $type.ast->get_column(), std::move($name.ast), std::move($type.ast));
         for (int i = 0; i < $args.size(); i++) {
@@ -186,13 +258,23 @@ functionCall returns [ std::unique_ptr<FunctionCall> ast ]
     ;
 
 variableDeclaration returns [ std::unique_ptr<VariableDeclaration> ast ]
-    : type name=identifier SEMICOLON
+    : type name=identifier (l+=LBRACK (exp+=expression)? RBRACK)*
     {
         $ast = std::make_unique<VariableDeclaration>($name.ast->get_line(), $name.ast->get_column(), std::move($name.ast), std::move($type.ast), nullptr);
+
+        $ast->type()->set_array_dimensions($l.size());
+        for (int i = 0; i < $exp.size(); i++) {
+            $ast->type()->set_array_dimension(i, std::move($exp[i]->ast));
+        }
     }
-    | type name=identifier EQUAL expression SEMICOLON
+    | type name=identifier (lb+=LBRACK (ex+=expression)? RBRACK)* EQUAL expression
         {
             $ast = std::make_unique<VariableDeclaration>($name.ast->get_line(), $name.ast->get_column(), std::move($name.ast), std::move($type.ast), std::move($expression.ast));
+
+            $ast->type()->set_array_dimensions($lb.size());
+            for (int i = 0; i < $ex.size(); i++) {
+                $ast->type()->set_array_dimension(i, std::move($ex[i]->ast));
+            }
         }
     ;
 
@@ -206,23 +288,160 @@ globalVariableDeclaration returns [ std::unique_ptr<VariableDeclaration> ast ]
     ;
 
 type returns [ std::unique_ptr<Type> ast ]
-    : t=primitiveType
+    : pt=primitiveType
+    {
+        $ast = std::move($pt.ast);
+    }
+    | nt=namedType
+    {
+        $ast = std::move($nt.ast);
+    }
+    | sdc=structDeclaration
+    {
+        $ast = std::move($sdc.ast);
+    }
+    | sdf=structDefinition
+    {
+        $ast = std::move($sdf.ast);
+    }
+    | ud=unionDeclaration
+    {
+        $ast = std::move($ud.ast);
+    }
+    | udf=unionDefinition
+    {
+        $ast = std::move($udf.ast);
+    }
+    | t=type STAR
     {
         $ast = std::move($t.ast);
+        if ($ast->is_pointer) {
+            Token *symbol = $ctx->STAR()->getSymbol();
+            die("Two Stars ('*') in Type %d:%d", symbol->getLine(), symbol->getCharPositionInLine());
+        }
+        $ast->is_pointer = true;
+    }
+    ;
+
+structDeclaration returns [ std::unique_ptr<StructDeclaration> ast ]
+    : STRUCT name=identifier
+    {
+        Token *symbol = $ctx->STRUCT()->getSymbol();
+        $ast = std::make_unique<StructDeclaration>(symbol->getLine(), symbol->getCharPositionInLine(), std::move($name.ast));
+    }
+    ;
+
+structDefinition returns [ std::unique_ptr<StructDefinition> ast ]
+    : STRUCT (name=identifier)? LBRACE (var+=variableDeclaration SEMICOLON)* RBRACE
+    {
+        Token *symbol = $ctx->STRUCT()->getSymbol();
+        std::unique_ptr<Identifier> name;
+        if ($name.ctx != nullptr) {
+            name = std::move($name.ast);
+        } else {
+            name = std::make_unique<Identifier>(symbol->getLine(), symbol->getCharPositionInLine(), "");
+        }
+        $ast = std::make_unique<StructDefinition>(symbol->getLine(), symbol->getCharPositionInLine(), std::move(name));
+        for (int i = 0; i < $var.size(); i++) {
+            $ast->add_member(std::move($var[i]->ast));
+        }
+    }
+    ;
+
+unionDeclaration returns [ std::unique_ptr<UnionDeclaration> ast ]
+    : UNION name=identifier
+    {
+        Token *symbol = $ctx->UNION()->getSymbol();
+        $ast = std::make_unique<UnionDeclaration>(symbol->getLine(), symbol->getCharPositionInLine(), std::move($name.ast));
+    }
+    ;
+
+unionDefinition returns [ std::unique_ptr<UnionDefinition> ast ]
+    : UNION (name=identifier)? LBRACE (var+=variableDeclaration SEMICOLON)* RBRACE
+    {
+        Token *symbol = $ctx->UNION()->getSymbol();
+        std::unique_ptr<Identifier> name;
+        if ($name.ctx != nullptr) {
+            name = std::move($name.ast);
+        } else {
+            name = std::make_unique<Identifier>(symbol->getLine(), symbol->getCharPositionInLine(), "");
+        }
+        $ast = std::make_unique<UnionDefinition>(symbol->getLine(), symbol->getCharPositionInLine(), std::move(name));
+        for (int i = 0; i < $var.size(); i++) {
+            $ast->add_member(std::move($var[i]->ast));
+        }
+    }
+    ;
+
+namedType returns [ std::unique_ptr<NamedType> ast ]
+    : id=identifier
+    {
+        $ast = std::make_unique<NamedType>($id.ast->get_line(), $id.ast->get_column(), std::move($id.ast));
     }
     ;
 
 primitiveType returns [ std::unique_ptr <PrimitiveType> ast ]
+    : p=primitiveTypeHelper
+    {
+        $ast = std::move($p.ast);
+    }
+    | t=primitiveType h=primitiveTypeHelper
+    {
+        $ast = std::move($t.ast);
+        $ast->add_keyword($h.ast->keywords[0]);
+    }
+    ;
+
+primitiveTypeHelper returns [ std::unique_ptr <PrimitiveType> ast ]
     : INT
     {
         Token *symbol = $ctx->INT()->getSymbol();
-        $ast = std::make_unique<PrimitiveType>(symbol->getLine(), symbol->getCharPositionInLine(), PrimitiveType::Primitive::INT);
+        $ast = std::make_unique<PrimitiveType>(symbol->getLine(), symbol->getCharPositionInLine());
+        $ast->add_keyword(PrimitiveType::KeyWords::INT);
     }
     | VOID
     {
         Token *symbol = $ctx->VOID()->getSymbol();
-        $ast = std::make_unique<PrimitiveType>(symbol->getLine(), symbol->getCharPositionInLine(), PrimitiveType::Primitive::VOID);
+        $ast = std::make_unique<PrimitiveType>(symbol->getLine(), symbol->getCharPositionInLine());
+        $ast->add_keyword(PrimitiveType::KeyWords::VOID);
     }
+    | SIGNED
+    {
+        Token *symbol = $ctx->SIGNED()->getSymbol();
+        $ast = std::make_unique<PrimitiveType>(symbol->getLine(), symbol->getCharPositionInLine());
+        $ast->add_keyword(PrimitiveType::KeyWords::SIGNED);
+    }
+    | UNSIGNED
+    {
+        Token *symbol = $ctx->UNSIGNED()->getSymbol();
+        $ast = std::make_unique<PrimitiveType>(symbol->getLine(), symbol->getCharPositionInLine());
+        $ast->add_keyword(PrimitiveType::KeyWords::UNSIGNED);
+    }
+    | CHAR
+    {
+        Token *symbol = $ctx->CHAR()->getSymbol();
+        $ast = std::make_unique<PrimitiveType>(symbol->getLine(), symbol->getCharPositionInLine());
+        $ast->add_keyword(PrimitiveType::KeyWords::CHAR);
+    }
+    | SHORT
+    {
+        Token *symbol = $ctx->SHORT()->getSymbol();
+        $ast = std::make_unique<PrimitiveType>(symbol->getLine(), symbol->getCharPositionInLine());
+        $ast->add_keyword(PrimitiveType::KeyWords::SHORT);
+    }
+    | LONG
+    {
+        Token *symbol = $ctx->LONG()->getSymbol();
+        $ast = std::make_unique<PrimitiveType>(symbol->getLine(), symbol->getCharPositionInLine());
+        $ast->add_keyword(PrimitiveType::KeyWords::LONG);
+    }
+    | BUILTIN_VA_LIST
+    {
+        Token *symbol = $ctx->BUILTIN_VA_LIST()->getSymbol();
+        $ast = std::make_unique<PrimitiveType>(symbol->getLine(), symbol->getCharPositionInLine());
+        $ast->add_keyword(PrimitiveType::KeyWords::VA_LIST);
+    }
+
     ;
 
 // Lexer
@@ -234,8 +453,19 @@ COMMENT: '//' ~('\n'|'\r')* '\r'? '\n' -> skip;
 EXTERN: 'extern';
 STATIC: 'static';
 
+TYPEDEF: 'typedef';
+
+SIZEOF_KEY: 'sizeof';
 INT: 'int';
+SIGNED: 'signed';
+UNSIGNED: 'unsigned';
+CHAR: 'char';
+SHORT: 'short';
+LONG: 'long';
 VOID: 'void';
+BUILTIN_VA_LIST: '__builtin_va_list';
+STRUCT: 'struct';
+UNION: 'union';
 
 RETURN: 'return';
 
@@ -247,6 +477,8 @@ RBRACK: ']';
 
 LBRACE: '{';
 RBRACE: '}';
+
+AND: '&';
 
 PLUS: '+';
 MINUS: '-';

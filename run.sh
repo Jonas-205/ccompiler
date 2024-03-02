@@ -32,7 +32,7 @@ make -j 16
 # Run
 cd ..
 clear
-./"$BUILD_DIR"/ccomp examples/foo.c --dot foo.dot
+./"$BUILD_DIR"/ccomp examples/structs.c --dot foo.dot
 
 # dot file
 dot foo.dot -Tpdf > foo.pdf
