@@ -46,15 +46,6 @@ class ASTBaseVisitor : public ASTVisitor {
         }
         return nullptr;
     }
-    void *visit(ParameterDeclaration &node, void *args) override {
-        if (node.owns_type()) {
-            node.type()->accept(*this, args);
-        }
-        if (node.name) {
-            node.name->accept(*this, args);
-        }
-        return nullptr;
-    }
     void *visit(FunctionDefinition &node, void *args) override {
         if (node.owns_type()) {
             node.type()->accept(*this, args);

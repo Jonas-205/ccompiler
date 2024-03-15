@@ -90,17 +90,49 @@ globalDeclaration returns [ std::unique_ptr<Declaration> ast ]
         }
     ;
 
-fnType returns [ std::unique_ptr<Identifier> ast ]
-    : type identifier LPAREN (args+=parameterDeclaration (COMMA args+=parameterDeclaration)*)? RPAREN
+fnTypeWithoutReturn returns [ std::unique_ptr<Identifier> ast ]
+    : id=identifier LPAREN (args+=parameterDeclaration (COMMA args+=parameterDeclaration)*)? RPAREN
+    {
+        $ast = std::move($identifier.ast);
+        auto fn = std::make_unique<FunctionType>($ast->get_line(), $ast->get_column(), nullptr);
+        for (int i = 0; i < $args.size(); i++) {
+           fn->add_parameter(std::move($args[i]->ast));
+        }
+        $ast->add_type(std::move(fn));
+    }
+    | s=LPAREN STAR RPAREN LPAREN (args+=parameterDeclaration (COMMA args+=parameterDeclaration)*)? RPAREN
          {
-             $ast = std::move($identifier.ast);
-             auto fn = std::make_unique<FunctionType>($type.ast->get_line(), $type.ast->get_column(), std::move($type.ast));
+             Token *symbol = $ctx->s;
+             $ast = std::make_unique<Identifier>(symbol->getLine(), symbol->getCharPositionInLine(), "");
+
+             auto fn = std::make_unique<FunctionType>($ast->get_line(), $ast->get_column(), nullptr);
              for (int i = 0; i < $args.size(); i++) {
-                 fn->add_parameter(std::move($args[i]->ast));
+                fn->add_parameter(std::move($args[i]->ast));
              }
+             fn->is_pointer = true;
              $ast->add_type(std::move(fn));
          }
 
+    ;
+
+fnType returns [ std::unique_ptr<Identifier> ast ]
+    : type fnTypeWithoutReturn
+         {
+             $ast = std::move($fnTypeWithoutReturn.ast);
+             dynamic_cast<FunctionType*>($ast->type())->return_type = std::move($type.ast);
+         }
+    | type LPAREN STAR id=fnTypeWithoutReturn RPAREN LPAREN (args+=parameterDeclaration (COMMA args+=parameterDeclaration)*)? RPAREN
+    {
+             $ast = std::move($id.ast);
+             auto fn = std::make_unique<FunctionType>($ast->get_line(), $ast->get_column(), std::move($type.ast));
+
+             for (int i = 0; i < $args.size(); i++) {
+                 fn->add_parameter(std::move($args[i]->ast));
+             }
+
+             fn->is_pointer = true;
+             dynamic_cast<FunctionType*>($ast->type())->return_type = std::move(fn);
+    }
     ;
 
 identifier_with_type returns [ std::unique_ptr<Identifier> ast ]
@@ -256,14 +288,15 @@ visibility returns [ bool is_public ]
     | STATIC { $is_public = false; }
     ;
 
-parameterDeclaration returns [ std::unique_ptr<ParameterDeclaration> ast ]
+parameterDeclaration returns [ std::unique_ptr<Identifier> ast ]
     : t=type
     {
-        $ast = std::make_unique<ParameterDeclaration>($t.ast->get_line(), $t.ast->get_column(), std::move($t.ast));
+        $ast = std::make_unique<Identifier>($t.ast->get_line(), $t.ast->get_column(), "");
+        $ast->add_type(std::move($t.ast));
     }
     | id=identifier_with_type
     {
-        $ast = std::make_unique<ParameterDeclaration>($id.ast->get_line(), $id.ast->get_column(), std::move($id.ast));
+        $ast = std::move($id.ast);
     }
     ;
 

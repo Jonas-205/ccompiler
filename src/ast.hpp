@@ -168,13 +168,13 @@ class FunctionType : public Type {
 
     AST_VISIT_METHODS()
 
-    void add_parameter(std::unique_ptr<ParameterDeclaration> parameter) {
+    void add_parameter(std::unique_ptr<Identifier> parameter) {
         parameters.push_back(std::move(parameter));
     }
 
    public:
     std::unique_ptr<Type> return_type;
-    std::vector<std::unique_ptr<ParameterDeclaration>> parameters;
+    std::vector<std::unique_ptr<Identifier>> parameters;
 };
 
 class PrimitiveType : public Type {
@@ -295,23 +295,6 @@ class VariableDeclaration : public Declaration {
    public:
     std::unique_ptr<AST> value;
     bool global = false;
-};
-
-class ParameterDeclaration : public Declaration {
-   public:
-    ParameterDeclaration(uint32_t line, uint32_t column,
-                         std::unique_ptr<Identifier> name)
-        : Declaration(line, column, std::move(name)), AST(line, column) {
-        AST_TRACE(line << ":" << column << " " << this->name->name);
-    }
-
-    ParameterDeclaration(uint32_t line, uint32_t column,
-                         std::unique_ptr<Type> type)
-        : Declaration(line, column, std::move(type)), AST(line, column) {
-        AST_TRACE(line << ":" << column);
-    }
-
-    AST_VISIT_METHODS()
 };
 
 class ArrayInitializationList : public AST {

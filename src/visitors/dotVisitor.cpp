@@ -92,19 +92,15 @@ void *DotVisitor::visit(Identifier &node, void *args) {
 }
 
 void *DotVisitor::visit(PrimitiveType &node, void *args) {
-    GENERATE_TYPE("Primitive");
+    GENERATE_TYPE(node.to_string());
 }
 
 void *DotVisitor::visit(NamedType &node, void *args) {
-    GENERATE_TYPE("Named");
+    GENERATE_TYPE(node.name);
 }
 
 void *DotVisitor::visit(VariableDeclaration &node, void *args) {
     GENERATE("Variable");
-}
-
-void *DotVisitor::visit(ParameterDeclaration &node, void *args) {
-    GENERATE("Parameter");
 }
 
 void *DotVisitor::visit(FunctionCall &node, void *args) {

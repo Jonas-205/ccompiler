@@ -14,7 +14,6 @@ class DotVisitor : public ASTBaseVisitor {
     void *visit(Identifier &node, void *args) override;
     void *visit(PrimitiveType &node, void *args) override;
     void *visit(VariableDeclaration &node, void *args) override;
-    void *visit(ParameterDeclaration &node, void *args) override;
     void *visit(FunctionDefinition &node, void *args) override;
     void *visit(FunctionDeclaration &node, void *args) override;
     void *visit(FunctionCall &node, void *args) override;

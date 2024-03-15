@@ -10,7 +10,6 @@ typedef class Identifier Identifier;
 typedef class Type Type;
 typedef class PrimitiveType PrimitiveType;
 typedef class VariableDeclaration VariableDeclaration;
-typedef class ParameterDeclaration ParameterDeclaration;
 typedef class FunctionDefinition FunctionDefinition;
 typedef class FunctionDeclaration FunctionDeclaration;
 typedef class FunctionCall FunctionCall;
@@ -33,7 +32,6 @@ class ASTVisitor {
     virtual void *visit(Identifier &node, void *args) = 0;
     virtual void *visit(PrimitiveType &node, void *args) = 0;
     virtual void *visit(VariableDeclaration &node, void *args) = 0;
-    virtual void *visit(ParameterDeclaration &node, void *args) = 0;
     virtual void *visit(FunctionDefinition &node, void *args) = 0;
     virtual void *visit(FunctionDeclaration &node, void *args) = 0;
     virtual void *visit(FunctionCall &node, void *args) = 0;
