@@ -114,10 +114,16 @@ class Identifier : public AST {
 
     void add_type(std::unique_ptr<Type> p_type) {
         this->type_owned = std::move(p_type);
+        if (add_ptr_later) {
+            this->type_owned->is_pointer = true;
+        }
     }
 
     void add_type(Type *p_type) {
         this->type_ref = p_type;
+        if (add_ptr_later) {
+            p_type->is_pointer = true;
+        }
     }
 
     Type *type() {
@@ -129,6 +135,7 @@ class Identifier : public AST {
 
    public:
     std::string name;
+    bool add_ptr_later = false;  // Add pointer to type once type is known
 
    private:
     std::unique_ptr<Type> type_owned;
@@ -346,24 +353,15 @@ class FunctionCall : public AST {
 class FunctionDefinition : public Declaration {
    public:
     FunctionDefinition(uint32_t line, uint32_t column,
-                       std::unique_ptr<Identifier> name,
-                       std::unique_ptr<Type> return_type,
+                       std::unique_ptr<Identifier> fn,
                        std::unique_ptr<Block> body)
-        : Declaration(line, column, std::move(name)),
+        : Declaration(line, column, std::move(fn)),
           AST(line, column),
           body(std::move(body)) {
         AST_TRACE(line << ":" << column << " " << this->name->name);
-        auto t = std::make_unique<FunctionType>(line, column,
-                                                std::move(return_type));
-        this->name->add_type(std::move(t));
     }
 
     AST_VISIT_METHODS()
-
-    void add_parameter(std::unique_ptr<ParameterDeclaration> parameter) {
-        dynamic_cast<FunctionType *>(type())->add_parameter(
-            std::move(parameter));
-    }
 
    public:
     std::unique_ptr<Block> body;
@@ -372,20 +370,12 @@ class FunctionDefinition : public Declaration {
 class FunctionDeclaration : public Declaration {
    public:
     FunctionDeclaration(uint32_t line, uint32_t column,
-                        std::unique_ptr<Identifier> name,
-                        std::unique_ptr<Type> type)
-        : Declaration(line, column, std::move(name)), AST(line, column) {
+                        std::unique_ptr<Identifier> fn)
+        : Declaration(line, column, std::move(fn)), AST(line, column) {
         AST_TRACE(line << ":" << column << " " << this->name->name);
-        auto t = std::make_unique<FunctionType>(line, column, std::move(type));
-        this->name->add_type(std::move(t));
     }
 
     AST_VISIT_METHODS()
-
-    void add_parameter(std::unique_ptr<ParameterDeclaration> parameter) {
-        dynamic_cast<FunctionType *>(type())->add_parameter(
-            std::move(parameter));
-    }
 };
 
 class Program : public AST {

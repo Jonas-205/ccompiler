@@ -54,6 +54,20 @@ void *DotVisitor::visit(Program &node, void *args) {
     return nullptr;
 
 
+#define GENERATE_TYPE(name) \
+    std::string arr = ""; \
+    for (int i = 0; i < node.array_dimensions; i++) { \
+        arr += "[]"; \
+    } \
+    int id = node_counter++; \
+    declare_node(id, std::string(name) + (node.is_pointer ? "*" : "") + arr); \
+    int parent = node_stack.top(); \
+    connect_nodes(parent, id); \
+    node_stack.push(id); \
+    ASTBaseVisitor::visit(node, args); \
+    node_stack.pop(); \
+    return nullptr;
+
 void *DotVisitor::visit(FunctionDeclaration &node, void *args) {
     GENERATE("Function Decl");
 }
@@ -78,19 +92,11 @@ void *DotVisitor::visit(Identifier &node, void *args) {
 }
 
 void *DotVisitor::visit(PrimitiveType &node, void *args) {
-    std::string arr = "";
-    for (int i = 0; i < node.array_dimensions; i++) {
-        arr += "[]";
-    }
-    GENERATE(node.to_string() + (node.is_pointer ? "*" : "") + arr);
+    GENERATE_TYPE("Primitive");
 }
 
 void *DotVisitor::visit(NamedType &node, void *args) {
-    std::string arr = "";
-    for (int i = 0; i < node.array_dimensions; i++) {
-        arr += "[]";
-    }
-    GENERATE(node.name + (node.is_pointer ? "*" : "") + arr);
+    GENERATE_TYPE("Named");
 }
 
 void *DotVisitor::visit(VariableDeclaration &node, void *args) {
@@ -130,27 +136,15 @@ void *DotVisitor::visit(SizeOf &node, void *args) {
 };
 
 void *DotVisitor::visit(FunctionType &node, void *args) {
-    std::string arr = "";
-    for (int i = 0; i < node.array_dimensions; i++) {
-        arr += "[]";
-    }
-    GENERATE("FunctionType");
+    GENERATE_TYPE("FunctionType");
 };
 
 void *DotVisitor::visit(StructType &node, void *args) {
-    std::string arr = "";
-    for (int i = 0; i < node.array_dimensions; i++) {
-        arr += "[]";
-    }
-    GENERATE("StructType");
+    GENERATE_TYPE("StructType");
 };
 
 void *DotVisitor::visit(UnionType &node, void *args) {
-    std::string arr = "";
-    for (int i = 0; i < node.array_dimensions; i++) {
-        arr += "[]";
-    }
-    GENERATE("UnionType");
+    GENERATE_TYPE("UnionType");
 };
 
 }  // namespace CCOMP::AST
