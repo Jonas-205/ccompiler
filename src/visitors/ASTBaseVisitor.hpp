@@ -37,6 +37,9 @@ class ASTBaseVisitor : public ASTVisitor {
         return nullptr;
     }
     void *visit(VariableDeclaration &node, void *args) override {
+        for (auto &attr : node.attributes) {
+            attr->accept(*this, args);
+        }
         if (node.owns_type()) {
             node.type()->accept(*this, args);
         }
@@ -47,6 +50,9 @@ class ASTBaseVisitor : public ASTVisitor {
         return nullptr;
     }
     void *visit(FunctionDefinition &node, void *args) override {
+        for (auto &attr : node.attributes) {
+            attr->accept(*this, args);
+        }
         if (node.owns_type()) {
             node.type()->accept(*this, args);
         }
@@ -55,6 +61,10 @@ class ASTBaseVisitor : public ASTVisitor {
         return nullptr;
     }
     void *visit(FunctionDeclaration &node, void *args) override {
+
+        for (auto &attr : node.attributes) {
+            attr->accept(*this, args);
+        }
         if (node.owns_type()) {
             node.type()->accept(*this, args);
         }
@@ -118,6 +128,9 @@ class ASTBaseVisitor : public ASTVisitor {
         return nullptr;
     }
     void *visit(StructType &node, void *args) override {
+        for (auto &attr : node.attributes) {
+            attr->accept(*this, args);
+        }
         node.name->accept(*this, args);
         for (auto &member : node.members) {
             member->accept(*this, args);
@@ -130,6 +143,9 @@ class ASTBaseVisitor : public ASTVisitor {
         return nullptr;
     }
     void *visit(UnionType &node, void *args) override {
+        for (auto &attr : node.attributes) {
+            attr->accept(*this, args);
+        }
         node.name->accept(*this, args);
         for (auto &member : node.members) {
             member->accept(*this, args);
@@ -139,6 +155,9 @@ class ASTBaseVisitor : public ASTVisitor {
                 arr->accept(*this, args);
             }
         }
+        return nullptr;
+    }
+    void *visit(Attribute &node, void *args) override {
         return nullptr;
     }
 };

@@ -23,6 +23,7 @@ typedef class FunctionType FunctionType;
 typedef class SizeOf SizeOf;
 typedef class StructType StructType;
 typedef class UnionType UnionType;
+typedef class Attribute Attribute;
 
 class ASTVisitor {
    public:
@@ -45,6 +46,7 @@ class ASTVisitor {
     virtual void *visit(FunctionType &node, void *args) = 0;
     virtual void *visit(StructType &node, void *args) = 0;
     virtual void *visit(UnionType &node, void *args) = 0;
+    virtual void *visit(Attribute &node, void *args) = 0;
 };
 
 }  // namespace CCOMP::AST

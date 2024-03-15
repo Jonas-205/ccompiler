@@ -9,14 +9,14 @@ using CCOMP::Arguments;
 using CCOMP::Parser::parse;
 
 void run(const Arguments &args) {
-    /* std::string file_content = preprocessor(args); */
+    std::string file_content = preprocessor(args);
 
-    /* if (args.stop_after_preprocessing) { */
-    /*     printf("%s", file_content.c_str()); */
-    /*     return; */
-    /* } */
+    if (args.stop_after_preprocessing) {
+        printf("%s", file_content.c_str());
+        return;
+    }
 
-    std::string file_content = CCOMP::IO::read_file(args.source_path);
+    /* std::string file_content = CCOMP::IO::read_file(args.source_path); */
 
     auto ast = parse(file_content);
     ast->file_location = args.source_path;

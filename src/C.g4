@@ -31,7 +31,6 @@ block returns [ std::unique_ptr<Block> ast ]
     }
     ;
 
-
 statement returns [ std::unique_ptr<AST> ast ]
     : variableDeclaration SEMICOLON
         {
@@ -43,7 +42,6 @@ statement returns [ std::unique_ptr<AST> ast ]
         }
     ;
 
-
 returnStatement returns [ std::unique_ptr<Return> ast ]
     : RETURN (exp=expression)?
     {
@@ -54,35 +52,48 @@ returnStatement returns [ std::unique_ptr<Return> ast ]
     }
     ;
 
-
 globalDeclaration returns [ std::unique_ptr<Declaration> ast ]
-    : var=globalVariableDeclaration SEMICOLON
+    : (a1=attribute)? fn=functionDefinition (a11=attribute)?
+    {
+        $ast = std::move($fn.ast);
+        if ($a1.ctx != nullptr) { $ast->add_attribute(std::move($a1.ast)); }
+        if ($a11.ctx != nullptr) { $ast->add_attribute(std::move($a11.ast)); }
+    }
+    | (a2=attribute)? decl=functionDeclaration (a12=attribute)? SEMICOLON
+    {
+       $ast = std::move($decl.ast);
+        if ($a2.ctx != nullptr) { $ast->add_attribute(std::move($a2.ast)); }
+        if ($a12.ctx != nullptr) { $ast->add_attribute(std::move($a12.ast)); }
+    }
+    | (a0=attribute)? var=globalVariableDeclaration (a10=attribute)? SEMICOLON
     {
         $ast = std::move($var.ast);
+        if ($a0.ctx != nullptr) { $ast->add_attribute(std::move($a0.ast)); }
+        if ($a10.ctx != nullptr) { $ast->add_attribute(std::move($a10.ast)); }
     }
-    | fn=functionDefinition
-        {
-            $ast = std::move($fn.ast);
-        }
-    | decl=functionDeclaration SEMICOLON
-        {
-            $ast = std::move($decl.ast);
-        }
-    | sdc=structDeclaration SEMICOLON
+    | (a3=attribute)? sdc=structDeclaration (a13=attribute)? SEMICOLON
     {
         $ast = std::move($sdc.ast);
+        if ($a3.ctx != nullptr) { $ast->add_attribute(std::move($a3.ast)); }
+        if ($a13.ctx != nullptr) { $ast->add_attribute(std::move($a13.ast)); }
     }
-    | sdf=structDefinition SEMICOLON
+    | (a4=attribute)? sdf=structDefinition (a14=attribute)? SEMICOLON
     {
         $ast = std::move($sdf.ast);
+        if ($a4.ctx != nullptr) { $ast->add_attribute(std::move($a4.ast)); }
+        if ($a14.ctx != nullptr) { $ast->add_attribute(std::move($a14.ast)); }
     }
-    | ud=unionDeclaration SEMICOLON
+    | (a5=attribute)? ud=unionDeclaration (a15=attribute)? SEMICOLON
     {
         $ast = std::move($ud.ast);
+        if ($a5.ctx != nullptr) { $ast->add_attribute(std::move($a5.ast)); }
+        if ($a15.ctx != nullptr) { $ast->add_attribute(std::move($a15.ast)); }
     }
-    | udf=unionDefinition SEMICOLON
+    | (a6=attribute)? udf=unionDefinition (a16=attribute)? SEMICOLON
     {
         $ast = std::move($udf.ast);
+        if ($a6.ctx != nullptr) { $ast->add_attribute(std::move($a6.ast)); }
+        if ($a16.ctx != nullptr) { $ast->add_attribute(std::move($a16.ast)); }
     }
     | td=typedef SEMICOLON
         {
@@ -90,22 +101,52 @@ globalDeclaration returns [ std::unique_ptr<Declaration> ast ]
         }
     ;
 
+attribute returns [ std::unique_ptr<Attribute> ast ]
+    : ATTRIBUTE LPAREN LPAREN s=attributeContent RPAREN RPAREN
+    {
+        Token *symbol = $ctx->ATTRIBUTE()->getSymbol();
+        $ast = std::make_unique<Attribute>(symbol->getLine(), symbol->getCharPositionInLine(), $s.s);
+    }
+    ;
+
+attributeContent returns [ std::string s ]
+    : id=identifier
+    {
+        $s = $id.ast->name;
+    }
+    | c=constant
+    {
+        $s = $c.ast->value;
+    }
+    | a1=attributeContent a2=attributeContent
+    {
+        $s = $a1.s + " " + $a2.s;
+    }
+    | LPAREN a3=attributeContent RPAREN
+    {
+            $s = "(" + $a3.s + ")";
+        }
+    ;
+
 fnTypeWithoutReturn returns [ std::unique_ptr<Identifier> ast ]
-    : id=identifier LPAREN (args+=parameterDeclaration (COMMA args+=parameterDeclaration)*)? RPAREN
+    : id=identifier LPAREN (args+=parameterDeclaration (COMMA args+=parameterDeclaration)*)? (COMMA va=VA_ARGS)? RPAREN
     {
         $ast = std::move($identifier.ast);
         auto fn = std::make_unique<FunctionType>($ast->get_line(), $ast->get_column(), nullptr);
+        if ($va != nullptr) { fn->varargs = true; }
         for (int i = 0; i < $args.size(); i++) {
            fn->add_parameter(std::move($args[i]->ast));
         }
         $ast->add_type(std::move(fn));
     }
-    | s=LPAREN STAR RPAREN LPAREN (args+=parameterDeclaration (COMMA args+=parameterDeclaration)*)? RPAREN
+    | s=LPAREN STAR RPAREN LPAREN (args+=parameterDeclaration (COMMA args+=parameterDeclaration)*)? (COMMA var=VA_ARGS)? RPAREN
          {
              Token *symbol = $ctx->s;
              $ast = std::make_unique<Identifier>(symbol->getLine(), symbol->getCharPositionInLine(), "");
 
              auto fn = std::make_unique<FunctionType>($ast->get_line(), $ast->get_column(), nullptr);
+             if ($var != nullptr) { fn->varargs = true; }
+
              for (int i = 0; i < $args.size(); i++) {
                 fn->add_parameter(std::move($args[i]->ast));
              }
@@ -121,10 +162,11 @@ fnType returns [ std::unique_ptr<Identifier> ast ]
              $ast = std::move($fnTypeWithoutReturn.ast);
              dynamic_cast<FunctionType*>($ast->type())->return_type = std::move($type.ast);
          }
-    | type LPAREN STAR id=fnTypeWithoutReturn RPAREN LPAREN (args+=parameterDeclaration (COMMA args+=parameterDeclaration)*)? RPAREN
+    | type LPAREN STAR id=fnTypeWithoutReturn RPAREN LPAREN (args+=parameterDeclaration (COMMA args+=parameterDeclaration)*)? (COMMA va=VA_ARGS)? RPAREN
     {
              $ast = std::move($id.ast);
              auto fn = std::make_unique<FunctionType>($ast->get_line(), $ast->get_column(), std::move($type.ast));
+             if ($va != nullptr) { fn->varargs = true; }
 
              for (int i = 0; i < $args.size(); i++) {
                  fn->add_parameter(std::move($args[i]->ast));
@@ -395,6 +437,26 @@ type returns [ std::unique_ptr<Type> ast ]
         }
         $ast->is_pointer = true;
     }
+    | CONST ca=type
+    {
+        $ast = std::move($ca.ast);
+        $ast->is_const = true;
+    }
+    | cb=type CONST
+    {
+        $ast = std::move($cb.ast);
+        $ast->is_const = true;
+    }
+    | RESTRICT ra=type
+    {
+        $ast = std::move($ra.ast);
+        $ast->is_restrict = true;
+    }
+    | rb=type RESTRICT
+    {
+        $ast = std::move($rb.ast);
+        $ast->is_restrict = true;
+    }
     ;
 
 structDeclaration returns [ std::unique_ptr<StructType> ast ]
@@ -536,6 +598,12 @@ STRUCT: 'struct';
 UNION: 'union';
 
 RETURN: 'return';
+
+CONST: 'const';
+RESTRICT: 'restrict' | '__restrict' | '__restrict__';
+ATTRIBUTE: '__attribute__';
+
+VA_ARGS: '...';
 
 LPAREN: '(';
 RPAREN: ')';

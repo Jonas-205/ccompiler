@@ -63,6 +63,19 @@ class Block : public AST {
     std::vector<std::unique_ptr<AST>> statements;
 };
 
+class Attribute : public AST {
+   public:
+    Attribute(uint32_t line, uint32_t column, std::string name)
+        : AST(line, column), name(std::move(name)) {
+        AST_TRACE(line << ":" << column << " " << name);
+    }
+
+    AST_VISIT_METHODS()
+
+   public:
+    std::string name;
+};
+
 class Constant : public AST {
    public:
     Constant(uint32_t line, uint32_t column, std::string value)
@@ -96,6 +109,8 @@ class Type : public virtual AST {
 
    public:
     bool is_pointer = false;
+    bool is_const = false;
+    bool is_restrict = false;
     int array_dimensions = 0;
     std::vector<std::unique_ptr<AST>> array_sizes;
 };
@@ -173,6 +188,7 @@ class FunctionType : public Type {
     }
 
    public:
+    bool varargs = false;
     std::unique_ptr<Type> return_type;
     std::vector<std::unique_ptr<Identifier>> parameters;
 };
@@ -264,9 +280,14 @@ class Declaration : public virtual AST {
         return name->type();
     }
 
+    void add_attribute(std::unique_ptr<Attribute> attribute) {
+        attributes.push_back(std::move(attribute));
+    }
+
    public:
     std::unique_ptr<Identifier> name;
     std::unique_ptr<Type> m_type;
+    std::vector<std::unique_ptr<Attribute>> attributes;
 };
 
 class TypeDef : public Declaration {
