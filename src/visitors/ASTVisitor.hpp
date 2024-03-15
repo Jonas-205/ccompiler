@@ -19,12 +19,11 @@ typedef class BinaryExpression BinaryExpression;
 typedef class Return Return;
 typedef class TypeDef TypeDef;
 typedef class NamedType NamedType;
-typedef class StructDefinition StructDefinition;
-typedef class StructDeclaration StructDeclaration;
 typedef class ArrayInitializationList ArrayInitializationList;
-typedef class UnionDefinition UnionDefinition;
-typedef class UnionDeclaration UnionDeclaration;
+typedef class FunctionType FunctionType;
 typedef class SizeOf SizeOf;
+typedef class StructType StructType;
+typedef class UnionType UnionType;
 
 class ASTVisitor {
    public:
@@ -43,12 +42,11 @@ class ASTVisitor {
     virtual void *visit(Return &node, void *args) = 0;
     virtual void *visit(TypeDef &node, void *args) = 0;
     virtual void *visit(NamedType &node, void *args) = 0;
-    virtual void *visit(StructDefinition &node, void *args) = 0;
-    virtual void *visit(StructDeclaration &node, void *args) = 0;
     virtual void *visit(ArrayInitializationList &node, void *args) = 0;
-    virtual void *visit(UnionDefinition &node, void *args) = 0;
-    virtual void *visit(UnionDeclaration &node, void *args) = 0;
     virtual void *visit(SizeOf &node, void *args) = 0;
+    virtual void *visit(FunctionType &node, void *args) = 0;
+    virtual void *visit(StructType &node, void *args) = 0;
+    virtual void *visit(UnionType &node, void *args) = 0;
 };
 
 }  // namespace CCOMP::AST

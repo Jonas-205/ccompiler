@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <iostream>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -10,11 +11,21 @@
 #include "common.hpp"
 #include "visitors/ASTVisitor.hpp"
 
+/* #define AST_TRACE(p)                                              \ */
+/*     do {                                                          \ */
+/*         printf("Visiting %s at %d:%d (", __func__, line, column); \ */
+/*         std::cout << p;                                           \ */
+/*         printf(")\n");                                            \ */
+/*     } while (0) */
+
+#define AST_TRACE(p)
+
 namespace CCOMP::AST {
 
 class AST {
    public:
     AST(uint32_t line, uint32_t column) : line(line), column(column) {
+        AST_TRACE(line << ":" << column);
     }
     virtual ~AST() = default;
 
@@ -39,6 +50,7 @@ class AST {
 class Block : public AST {
    public:
     Block(uint32_t line, uint32_t column) : AST(line, column), statements() {
+        AST_TRACE(line << ":" << column);
     }
 
     void add_statement(std::unique_ptr<AST> statement) {
@@ -55,6 +67,7 @@ class Constant : public AST {
    public:
     Constant(uint32_t line, uint32_t column, std::string value)
         : AST(line, column), value(std::move(value)) {
+        AST_TRACE(line << ":" << column << " " << value);
     }
 
     AST_VISIT_METHODS()
@@ -63,21 +76,10 @@ class Constant : public AST {
     std::string value;
 };
 
-class Identifier : public AST {
-   public:
-    Identifier(uint32_t line, uint32_t column, std::string name)
-        : AST(line, column), name(std::move(name)) {
-    }
-
-    AST_VISIT_METHODS()
-
-   public:
-    std::string name;
-};
-
 class Type : public virtual AST {
    public:
     Type(uint32_t line, uint32_t column) : AST(line, column) {
+        AST_TRACE(line << ":" << column);
     }
 
     void set_array_dimensions(int dimensions) {
@@ -98,10 +100,46 @@ class Type : public virtual AST {
     std::vector<std::unique_ptr<AST>> array_sizes;
 };
 
+class Identifier : public AST {
+   public:
+    Identifier(uint32_t line, uint32_t column, std::string name)
+        : AST(line, column),
+          name(std::move(name)),
+          type_owned(nullptr),
+          type_ref(nullptr) {
+        AST_TRACE(line << ":" << column << " " << name);
+    }
+
+    AST_VISIT_METHODS()
+
+    void add_type(std::unique_ptr<Type> p_type) {
+        this->type_owned = std::move(p_type);
+    }
+
+    void add_type(Type *p_type) {
+        this->type_ref = p_type;
+    }
+
+    Type *type() {
+        if (type_ref) {
+            return type_ref;
+        }
+        return type_owned.get();
+    }
+
+   public:
+    std::string name;
+
+   private:
+    std::unique_ptr<Type> type_owned;
+    Type *type_ref;
+};
+
 class NamedType : public Type {
    public:
-    NamedType(uint32_t line, uint32_t column, std::unique_ptr<Identifier> name)
-        : Type(line, column), AST(line, column) {
+    NamedType(std::unique_ptr<Identifier> name)
+        : Type(name->line, name->column), AST(name->line, name->column) {
+        AST_TRACE(line << ":" << column << " " << name->name);
         this->name = name->name;
     }
 
@@ -109,6 +147,27 @@ class NamedType : public Type {
 
    public:
     std::string name;
+};
+
+class FunctionType : public Type {
+   public:
+    FunctionType(uint32_t line, uint32_t column,
+                 std::unique_ptr<Type> return_type)
+        : Type(line, column),
+          AST(line, column),
+          return_type(std::move(return_type)) {
+        AST_TRACE(line << ":" << column);
+    }
+
+    AST_VISIT_METHODS()
+
+    void add_parameter(std::unique_ptr<ParameterDeclaration> parameter) {
+        parameters.push_back(std::move(parameter));
+    }
+
+   public:
+    std::unique_ptr<Type> return_type;
+    std::vector<std::unique_ptr<ParameterDeclaration>> parameters;
 };
 
 class PrimitiveType : public Type {
@@ -126,6 +185,7 @@ class PrimitiveType : public Type {
 
     PrimitiveType(uint32_t line, uint32_t column)
         : Type(line, column), AST(line, column) {
+        AST_TRACE(line << ":" << column);
     }
 
     AST_VISIT_METHODS()
@@ -173,45 +233,40 @@ class PrimitiveType : public Type {
 
 class Declaration : public virtual AST {
    public:
-    Declaration(uint32_t line, uint32_t column, std::unique_ptr<AST> name,
-                std::unique_ptr<Type> type)
-        : AST(line, column),
-          name(std::move(name)),
-          m_type(std::move(type)),
-          m_type_ref(nullptr) {
+    Declaration(uint32_t line, uint32_t column,
+                std::unique_ptr<Identifier> name)
+        : AST(line, column), name(std::move(name)), m_type(nullptr) {
+        AST_TRACE(line << ":" << column << " " << this->name->name);
     }
 
-    Declaration(uint32_t line, uint32_t column, std::unique_ptr<AST> name,
-                Type *type)
-        : AST(line, column),
-          name(std::move(name)),
-          m_type(nullptr),
-          m_type_ref(type) {
+    Declaration(uint32_t line, uint32_t column, std::unique_ptr<Type> type)
+        : AST(line, column), name(nullptr), m_type(std::move(type)) {
+        AST_TRACE(line << ":" << column);
     }
 
     bool is_public = true;
 
-    Type *type() {
+    virtual bool owns_type() {
+        return m_type != nullptr;
+    }
+
+    virtual Type *type() {
         if (m_type) {
             return m_type.get();
         }
-        return m_type_ref;
+        return name->type();
     }
 
    public:
-    std::unique_ptr<AST> name;
-
-   private:
+    std::unique_ptr<Identifier> name;
     std::unique_ptr<Type> m_type;
-    Type *m_type_ref;
 };
 
 class TypeDef : public Declaration {
    public:
-    TypeDef(uint32_t line, uint32_t column, std::unique_ptr<Type> org,
-            std::unique_ptr<NamedType> named)
-        : Declaration(line, column, std::move(named), std::move(org)),
-          AST(line, column) {
+    TypeDef(uint32_t line, uint32_t column, std::unique_ptr<Identifier> id)
+        : Declaration(line, column, std::move(id)), AST(line, column) {
+        AST_TRACE(line << ":" << column << " " << this->name->name);
     }
 
     AST_VISIT_METHODS();
@@ -221,10 +276,11 @@ class VariableDeclaration : public Declaration {
    public:
     VariableDeclaration(uint32_t line, uint32_t column,
                         std::unique_ptr<Identifier> name,
-                        std::unique_ptr<Type> type, std::unique_ptr<AST> value)
-        : Declaration(line, column, std::move(name), std::move(type)),
+                        std::unique_ptr<AST> value)
+        : Declaration(line, column, std::move(name)),
           AST(line, column),
           value(std::move(value)) {
+        AST_TRACE(line << ":" << column << " " << this->name->name);
     }
 
     AST_VISIT_METHODS()
@@ -237,10 +293,15 @@ class VariableDeclaration : public Declaration {
 class ParameterDeclaration : public Declaration {
    public:
     ParameterDeclaration(uint32_t line, uint32_t column,
-                         std::unique_ptr<Identifier> name,
+                         std::unique_ptr<Identifier> name)
+        : Declaration(line, column, std::move(name)), AST(line, column) {
+        AST_TRACE(line << ":" << column << " " << this->name->name);
+    }
+
+    ParameterDeclaration(uint32_t line, uint32_t column,
                          std::unique_ptr<Type> type)
-        : Declaration(line, column, std::move(name), std::move(type)),
-          AST(line, column) {
+        : Declaration(line, column, std::move(type)), AST(line, column) {
+        AST_TRACE(line << ":" << column);
     }
 
     AST_VISIT_METHODS()
@@ -250,6 +311,7 @@ class ArrayInitializationList : public AST {
    public:
     ArrayInitializationList(uint32_t line, uint32_t column)
         : AST(line, column), values() {
+        AST_TRACE(line << ":" << column);
     }
 
     AST_VISIT_METHODS()
@@ -267,6 +329,7 @@ class FunctionCall : public AST {
     FunctionCall(uint32_t line, uint32_t column,
                  std::unique_ptr<Identifier> name)
         : AST(line, column), name(std::move(name)), arguments() {
+        AST_TRACE(line << ":" << column << " " << this->name->name);
     }
 
     AST_VISIT_METHODS()
@@ -284,21 +347,25 @@ class FunctionDefinition : public Declaration {
    public:
     FunctionDefinition(uint32_t line, uint32_t column,
                        std::unique_ptr<Identifier> name,
-                       std::unique_ptr<Type> type, std::unique_ptr<Block> body)
-        : Declaration(line, column, std::move(name), std::move(type)),
+                       std::unique_ptr<Type> return_type,
+                       std::unique_ptr<Block> body)
+        : Declaration(line, column, std::move(name)),
           AST(line, column),
-          parameters(),
           body(std::move(body)) {
+        AST_TRACE(line << ":" << column << " " << this->name->name);
+        auto t = std::make_unique<FunctionType>(line, column,
+                                                std::move(return_type));
+        this->name->add_type(std::move(t));
     }
 
     AST_VISIT_METHODS()
 
     void add_parameter(std::unique_ptr<ParameterDeclaration> parameter) {
-        parameters.push_back(std::move(parameter));
+        dynamic_cast<FunctionType *>(type())->add_parameter(
+            std::move(parameter));
     }
 
    public:
-    std::vector<std::unique_ptr<ParameterDeclaration>> parameters;
     std::unique_ptr<Block> body;
 };
 
@@ -307,25 +374,25 @@ class FunctionDeclaration : public Declaration {
     FunctionDeclaration(uint32_t line, uint32_t column,
                         std::unique_ptr<Identifier> name,
                         std::unique_ptr<Type> type)
-        : Declaration(line, column, std::move(name), std::move(type)),
-          AST(line, column),
-          parameters() {
+        : Declaration(line, column, std::move(name)), AST(line, column) {
+        AST_TRACE(line << ":" << column << " " << this->name->name);
+        auto t = std::make_unique<FunctionType>(line, column, std::move(type));
+        this->name->add_type(std::move(t));
     }
 
     AST_VISIT_METHODS()
 
     void add_parameter(std::unique_ptr<ParameterDeclaration> parameter) {
-        parameters.push_back(std::move(parameter));
+        dynamic_cast<FunctionType *>(type())->add_parameter(
+            std::move(parameter));
     }
-
-   public:
-    std::vector<std::unique_ptr<ParameterDeclaration>> parameters;
 };
 
 class Program : public AST {
    public:
     Program(uint32_t line, uint32_t column)
         : AST(line, column), declarations() {
+        AST_TRACE(line << ":" << column);
     }
 
     AST_VISIT_METHODS()
@@ -350,6 +417,7 @@ class UnaryExpression : public AST {
     UnaryExpression(uint32_t line, uint32_t column, std::unique_ptr<AST> value,
                     Operator op)
         : AST(line, column), value(std::move(value)), op(op) {
+        AST_TRACE(line << ":" << column << " " << op_to_str());
     }
 
     AST_VISIT_METHODS()
@@ -400,6 +468,7 @@ class BinaryExpression : public AST {
           left(std::move(left)),
           right(std::move(right)),
           op(op) {
+        AST_TRACE(line << ":" << column << " " << op_to_str());
     }
 
     AST_VISIT_METHODS()
@@ -449,6 +518,7 @@ class Return : public AST {
    public:
     Return(uint32_t line, uint32_t column, std::unique_ptr<AST> value)
         : AST(line, column), value(std::move(value)) {
+        AST_TRACE(line << ":" << column);
     }
 
     AST_VISIT_METHODS()
@@ -457,74 +527,77 @@ class Return : public AST {
     std::unique_ptr<AST> value;
 };
 
-class StructDeclaration : public Declaration, public Type {
-   public:
-    StructDeclaration(uint32_t line, uint32_t column,
-                      std::unique_ptr<Identifier> name)
-        : Declaration(line, column, std::move(name), this),
-          Type(line, column),
-          AST(line, column) {
-    }
-
-    AST_VISIT_METHODS()
-};
-
-class StructDefinition : public StructDeclaration {
-   public:
-    StructDefinition(uint32_t line, uint32_t column,
-                     std::unique_ptr<Identifier> name)
-        : StructDeclaration(line, column, std::move(name)), AST(line, column) {
-    }
-
-    AST_VISIT_METHODS()
-
-    void add_member(std::unique_ptr<VariableDeclaration> member) {
-        members.push_back(std::move(member));
-    }
-
-   public:
-    std::vector<std::unique_ptr<VariableDeclaration>> members;
-};
-
-class UnionDeclaration : public Declaration, public Type {
-   public:
-    UnionDeclaration(uint32_t line, uint32_t column,
-                     std::unique_ptr<Identifier> name)
-        : Declaration(line, column, std::move(name), this),
-          Type(line, column),
-          AST(line, column) {
-    }
-
-    AST_VISIT_METHODS()
-};
-
-class UnionDefinition : public UnionDeclaration {
-   public:
-    UnionDefinition(uint32_t line, uint32_t column,
-                    std::unique_ptr<Identifier> name)
-        : UnionDeclaration(line, column, std::move(name)), AST(line, column) {
-    }
-
-    AST_VISIT_METHODS()
-
-    void add_member(std::unique_ptr<VariableDeclaration> member) {
-        members.push_back(std::move(member));
-    }
-
-   public:
-    std::vector<std::unique_ptr<VariableDeclaration>> members;
-};
-
 class SizeOf : public AST {
    public:
     SizeOf(uint32_t line, uint32_t column, std::unique_ptr<Type> type)
         : AST(line, column), type(std::move(type)) {
+        AST_TRACE(line << ":" << column);
     }
 
     AST_VISIT_METHODS()
 
    public:
     std::unique_ptr<Type> type;
+};
+
+class StructType : public Type, public Declaration {
+   public:
+    StructType(uint32_t line, uint32_t column, std::unique_ptr<Identifier> name,
+               bool definition)
+        : Type(line, column),
+          AST(line, column),
+          Declaration(line, column, std::move(name)),
+          definition(definition) {
+        AST_TRACE(line << ":" << column << " " << this->name->name);
+    }
+
+    void add_member(std::unique_ptr<VariableDeclaration> member) {
+        members.push_back(std::move(member));
+    }
+
+    AST_VISIT_METHODS()
+
+    virtual bool owns_type() override {
+        return false;
+    }
+
+    virtual Type *type() override {
+        return this;
+    }
+
+   public:
+    bool definition;
+    std::vector<std::unique_ptr<VariableDeclaration>> members;
+};
+
+class UnionType : public Type, public Declaration {
+   public:
+    UnionType(uint32_t line, uint32_t column, std::unique_ptr<Identifier> name,
+              bool definition)
+        : Type(line, column),
+          AST(line, column),
+          Declaration(line, column, std::move(name)),
+          definition(definition) {
+        AST_TRACE(line << ":" << column << " " << this->name->name);
+    }
+
+    void add_member(std::unique_ptr<VariableDeclaration> member) {
+        members.push_back(std::move(member));
+    }
+
+    AST_VISIT_METHODS()
+
+    virtual bool owns_type() override {
+        return false;
+    }
+
+    virtual Type *type() override {
+        return this;
+    }
+
+   public:
+    bool definition;
+    std::vector<std::unique_ptr<VariableDeclaration>> members;
 };
 
 #undef AST_VISIT_METHODS

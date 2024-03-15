@@ -71,6 +71,9 @@ void *DotVisitor::visit(Constant &node, void *args) {
 }
 
 void *DotVisitor::visit(Identifier &node, void *args) {
+    if (node.name == "") {
+        GENERATE("Anonymous");
+    }
     GENERATE(node.name);
 }
 
@@ -118,44 +121,36 @@ void *DotVisitor::visit(TypeDef &node, void *args) {
     GENERATE("TypeDef");
 }
 
-void *DotVisitor::visit(StructDefinition &node, void *args) {
-    std::string arr = "";
-    for (int i = 0; i < node.array_dimensions; i++) {
-        arr += "[]";
-    }
-    GENERATE("Struct Def " + arr);
-};
-
-void *DotVisitor::visit(StructDeclaration &node, void *args) {
-    std::string arr = "";
-    for (int i = 0; i < node.array_dimensions; i++) {
-        arr += "[]";
-    }
-    GENERATE("Struct Decl " + arr);
-};
-
 void *DotVisitor::visit(ArrayInitializationList &node, void *args) {
     GENERATE("Array Init");
 };
 
-void *DotVisitor::visit(UnionDefinition &node, void *args) {
-    std::string arr = "";
-    for (int i = 0; i < node.array_dimensions; i++) {
-        arr += "[]";
-    }
-    GENERATE("Union Def " + arr);
-};
-
-void *DotVisitor::visit(UnionDeclaration &node, void *args) {
-    std::string arr = "";
-    for (int i = 0; i < node.array_dimensions; i++) {
-        arr += "[]";
-    }
-    GENERATE("Union Decl " + arr);
-};
-
 void *DotVisitor::visit(SizeOf &node, void *args) {
     GENERATE("SizeOf");
+};
+
+void *DotVisitor::visit(FunctionType &node, void *args) {
+    std::string arr = "";
+    for (int i = 0; i < node.array_dimensions; i++) {
+        arr += "[]";
+    }
+    GENERATE("FunctionType");
+};
+
+void *DotVisitor::visit(StructType &node, void *args) {
+    std::string arr = "";
+    for (int i = 0; i < node.array_dimensions; i++) {
+        arr += "[]";
+    }
+    GENERATE("StructType");
+};
+
+void *DotVisitor::visit(UnionType &node, void *args) {
+    std::string arr = "";
+    for (int i = 0; i < node.array_dimensions; i++) {
+        arr += "[]";
+    }
+    GENERATE("UnionType");
 };
 
 }  // namespace CCOMP::AST

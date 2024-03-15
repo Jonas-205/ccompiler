@@ -90,11 +90,28 @@ globalDeclaration returns [ std::unique_ptr<Declaration> ast ]
         }
     ;
 
+identifier_with_type returns [ std::unique_ptr<Identifier> ast ]
+    : type identifier
+    {
+        $ast = std::move($identifier.ast);
+        $ast->add_type(std::move($type.ast));
+    }
+    | type LPAREN STAR identifier RPAREN LPAREN (args+=parameterDeclaration (COMMA args+=parameterDeclaration)*)? RPAREN
+    {
+        $ast = std::move($identifier.ast);
+        auto fn = std::make_unique<FunctionType>($type.ast->get_line(), $type.ast->get_column(), std::move($type.ast));
+        for (int i = 0; i < $args.size(); i++) {
+            fn->add_parameter(std::move($args[i]->ast));
+        }
+        $ast->add_type(std::move(fn));
+    }
+    ;
+
 typedef returns [ std::unique_ptr<TypeDef> ast ]
-    : TYPEDEF type namedType
+    : TYPEDEF id=identifier_with_type
     {
         Token *symbol = $ctx->TYPEDEF()->getSymbol();
-        $ast = std::make_unique<TypeDef>(symbol->getLine(), symbol->getCharPositionInLine(), std::move($type.ast), std::move($namedType.ast));
+        $ast = std::make_unique<TypeDef>(symbol->getLine(), symbol->getCharPositionInLine(), std::move($id.ast));
     }
     ;
 
@@ -217,11 +234,13 @@ visibility returns [ bool is_public ]
     ;
 
 parameterDeclaration returns [ std::unique_ptr<ParameterDeclaration> ast ]
-    : t=type (id=identifier)?
+    : t=type
     {
-        std::unique_ptr<Identifier> id = nullptr;
-        if ($id.ctx != nullptr) { id = std::move($id.ast); }
-        $ast = std::make_unique<ParameterDeclaration>($t.ast->get_line(), $t.ast->get_column(), std::move(id), std::move($t.ast));
+        $ast = std::make_unique<ParameterDeclaration>($t.ast->get_line(), $t.ast->get_column(), std::move($t.ast));
+    }
+    | id=identifier_with_type
+    {
+        $ast = std::make_unique<ParameterDeclaration>($id.ast->get_line(), $id.ast->get_column(), std::move($id.ast));
     }
     ;
 
@@ -258,22 +277,27 @@ functionCall returns [ std::unique_ptr<FunctionCall> ast ]
     ;
 
 variableDeclaration returns [ std::unique_ptr<VariableDeclaration> ast ]
-    : type name=identifier (l+=LBRACK (exp+=expression)? RBRACK)*
+    : id=identifier_with_type (l+=LBRACK (exp+=expression)? RBRACK)*
     {
-        $ast = std::make_unique<VariableDeclaration>($name.ast->get_line(), $name.ast->get_column(), std::move($name.ast), std::move($type.ast), nullptr);
+        $ast = std::make_unique<VariableDeclaration>($id.ast->get_line(), $id.ast->get_column(), std::move($id.ast), nullptr);
 
-        $ast->type()->set_array_dimensions($l.size());
-        for (int i = 0; i < $exp.size(); i++) {
-            $ast->type()->set_array_dimension(i, std::move($exp[i]->ast));
+        if ($l.size() > 0) {
+            $ast->type()->set_array_dimensions($l.size());
+                for (int i = 0; i < $exp.size(); i++) {
+                    $ast->type()->set_array_dimension(i, std::move($exp[i]->ast));
+                }
         }
-    }
-    | type name=identifier (lb+=LBRACK (ex+=expression)? RBRACK)* EQUAL expression
-        {
-            $ast = std::make_unique<VariableDeclaration>($name.ast->get_line(), $name.ast->get_column(), std::move($name.ast), std::move($type.ast), std::move($expression.ast));
 
-            $ast->type()->set_array_dimensions($lb.size());
-            for (int i = 0; i < $ex.size(); i++) {
-                $ast->type()->set_array_dimension(i, std::move($ex[i]->ast));
+    }
+    | id=identifier_with_type (lb+=LBRACK (ex+=expression)? RBRACK)* EQUAL expression
+        {
+            $ast = std::make_unique<VariableDeclaration>($id.ast->get_line(), $id.ast->get_column(), std::move($id.ast), std::move($expression.ast));
+
+            if ($lb.size() > 0) {
+                $ast->type()->set_array_dimensions($lb.size());
+                for (int i = 0; i < $ex.size(); i++) {
+                    $ast->type()->set_array_dimension(i, std::move($ex[i]->ast));
+                }
             }
         }
     ;
@@ -292,9 +316,9 @@ type returns [ std::unique_ptr<Type> ast ]
     {
         $ast = std::move($pt.ast);
     }
-    | nt=namedType
+    | id=identifier
     {
-        $ast = std::move($nt.ast);
+        $ast = std::make_unique<NamedType>(std::move($id.ast));
     }
     | sdc=structDeclaration
     {
@@ -323,15 +347,15 @@ type returns [ std::unique_ptr<Type> ast ]
     }
     ;
 
-structDeclaration returns [ std::unique_ptr<StructDeclaration> ast ]
+structDeclaration returns [ std::unique_ptr<StructType> ast ]
     : STRUCT name=identifier
     {
         Token *symbol = $ctx->STRUCT()->getSymbol();
-        $ast = std::make_unique<StructDeclaration>(symbol->getLine(), symbol->getCharPositionInLine(), std::move($name.ast));
+        $ast = std::make_unique<StructType>(symbol->getLine(), symbol->getCharPositionInLine(), std::move($name.ast), false);
     }
     ;
 
-structDefinition returns [ std::unique_ptr<StructDefinition> ast ]
+structDefinition returns [ std::unique_ptr<StructType> ast ]
     : STRUCT (name=identifier)? LBRACE (var+=variableDeclaration SEMICOLON)* RBRACE
     {
         Token *symbol = $ctx->STRUCT()->getSymbol();
@@ -341,22 +365,22 @@ structDefinition returns [ std::unique_ptr<StructDefinition> ast ]
         } else {
             name = std::make_unique<Identifier>(symbol->getLine(), symbol->getCharPositionInLine(), "");
         }
-        $ast = std::make_unique<StructDefinition>(symbol->getLine(), symbol->getCharPositionInLine(), std::move(name));
+        $ast = std::make_unique<StructType>(symbol->getLine(), symbol->getCharPositionInLine(), std::move(name), true);
         for (int i = 0; i < $var.size(); i++) {
             $ast->add_member(std::move($var[i]->ast));
         }
     }
     ;
 
-unionDeclaration returns [ std::unique_ptr<UnionDeclaration> ast ]
+unionDeclaration returns [ std::unique_ptr<UnionType> ast ]
     : UNION name=identifier
     {
         Token *symbol = $ctx->UNION()->getSymbol();
-        $ast = std::make_unique<UnionDeclaration>(symbol->getLine(), symbol->getCharPositionInLine(), std::move($name.ast));
+        $ast = std::make_unique<UnionType>(symbol->getLine(), symbol->getCharPositionInLine(), std::move($name.ast), false);
     }
     ;
 
-unionDefinition returns [ std::unique_ptr<UnionDefinition> ast ]
+unionDefinition returns [ std::unique_ptr<UnionType> ast ]
     : UNION (name=identifier)? LBRACE (var+=variableDeclaration SEMICOLON)* RBRACE
     {
         Token *symbol = $ctx->UNION()->getSymbol();
@@ -366,17 +390,10 @@ unionDefinition returns [ std::unique_ptr<UnionDefinition> ast ]
         } else {
             name = std::make_unique<Identifier>(symbol->getLine(), symbol->getCharPositionInLine(), "");
         }
-        $ast = std::make_unique<UnionDefinition>(symbol->getLine(), symbol->getCharPositionInLine(), std::move(name));
+        $ast = std::make_unique<UnionType>(symbol->getLine(), symbol->getCharPositionInLine(), std::move(name), true);
         for (int i = 0; i < $var.size(); i++) {
             $ast->add_member(std::move($var[i]->ast));
         }
-    }
-    ;
-
-namedType returns [ std::unique_ptr<NamedType> ast ]
-    : id=identifier
-    {
-        $ast = std::make_unique<NamedType>($id.ast->get_line(), $id.ast->get_column(), std::move($id.ast));
     }
     ;
 
@@ -391,7 +408,7 @@ primitiveType returns [ std::unique_ptr <PrimitiveType> ast ]
         $ast->add_keyword($h.ast->keywords[0]);
     }
     ;
-
+    
 primitiveTypeHelper returns [ std::unique_ptr <PrimitiveType> ast ]
     : INT
     {
@@ -449,6 +466,7 @@ primitiveTypeHelper returns [ std::unique_ptr <PrimitiveType> ast ]
 WHITESPACE: (' ' | '\t' | '\r' | '\n') -> skip;
 PRE_PROCESSOR_OUTPUT: '#' ~('\n'|'\r')* '\r'? '\n' -> skip;
 COMMENT: '//' ~('\n'|'\r')* '\r'? '\n' -> skip;
+COMMENT1: '/*' .*? '*/' -> skip;
 
 EXTERN: 'extern';
 STATIC: 'static';
