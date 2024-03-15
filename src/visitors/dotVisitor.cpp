@@ -147,5 +147,12 @@ void *DotVisitor::visit(UnionType &node, void *args) {
 void *DotVisitor::visit(Attribute &node, void *args) {
     GENERATE("Attribute: " + node.name);
 };
+void *DotVisitor::visit(Assembly &node, void *args) {
+    std::stringstream s;
+    for (auto &i : node.assembly) {
+        s << "\\\"" << i << "\\\"" << "\n";
+    }
+    GENERATE("Asm: " + s.str());
+};
 
 }  // namespace CCOMP::AST

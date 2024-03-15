@@ -76,6 +76,19 @@ class Attribute : public AST {
     std::string name;
 };
 
+class Assembly : public AST {
+   public:
+    Assembly(uint32_t line, uint32_t column, std::vector<std::string> assembly)
+        : AST(line, column), assembly(std::move(assembly)) {
+        AST_TRACE(line << ":" << column);
+    }
+
+    AST_VISIT_METHODS()
+
+   public:
+    std::vector<std::string> assembly;
+};
+
 class Constant : public AST {
    public:
     Constant(uint32_t line, uint32_t column, std::string value)
@@ -105,6 +118,16 @@ class Type : public virtual AST {
             die("Invalid array dimension: %d", i);
         }
         array_sizes[i] = std::move(dimension);
+    }
+
+    void add_array_dimension(std::unique_ptr<AST> dimension) {
+        array_dimensions++;
+        array_sizes.push_back(std::move(dimension));
+    }
+
+    void add_array_dimension() {
+        array_dimensions++;
+        array_sizes.push_back(nullptr);
     }
 
    public:
@@ -280,14 +303,21 @@ class Declaration : public virtual AST {
         return name->type();
     }
 
-    void add_attribute(std::unique_ptr<Attribute> attribute) {
-        attributes.push_back(std::move(attribute));
+    void add_attribute(std::vector<std::unique_ptr<Attribute>> &attribute) {
+        for (auto &attr : attribute) {
+            attributes.push_back(std::move(attr));
+        }
+    }
+
+    void add_assembly(std::unique_ptr<Assembly> line) {
+        assembly.push_back(std::move(line));
     }
 
    public:
     std::unique_ptr<Identifier> name;
     std::unique_ptr<Type> m_type;
     std::vector<std::unique_ptr<Attribute>> attributes;
+    std::vector<std::unique_ptr<Assembly>> assembly;
 };
 
 class TypeDef : public Declaration {

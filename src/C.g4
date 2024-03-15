@@ -5,6 +5,9 @@ grammar C;
 #include "memory"
 #include "common.hpp"
 using namespace CCOMP::AST;
+
+#include <sstream>
+
 }
 
 
@@ -28,7 +31,7 @@ block returns [ std::unique_ptr<Block> ast ]
         for (int i = 0; i < $s.size(); i++) {
             $ast->add_statement(std::move($s[i]->ast));
         }
-    }
+    }string
     ;
 
 statement returns [ std::unique_ptr<AST> ast ]
@@ -52,48 +55,65 @@ returnStatement returns [ std::unique_ptr<Return> ast ]
     }
     ;
 
-globalDeclaration returns [ std::unique_ptr<Declaration> ast ]
-    : (a1=attribute)? fn=functionDefinition (a11=attribute)?
+globalDeclarationHelper returns [ std::unique_ptr<Declaration> ast ]
+    : a=attribute g=globalDeclarationHelper
+    {
+        $ast = std::move($g.ast);
+        $ast->add_attribute($a.ast);
+    }
+    | gl=globalDeclarationHelper at=attribute
+    {
+        $ast = std::move($gl.ast);
+        $ast->add_attribute($at.ast);
+    }
+    | ass=assembly glo=globalDeclarationHelper
+    {
+        $ast = std::move($glo.ast);
+        $ast->add_assembly(std::move($ass.ast));
+    }
+    | glob=globalDeclarationHelper as=assembly
+    {
+        $ast = std::move($glob.ast);
+        $ast->add_assembly(std::move($as.ast));
+    }
+    | fn=functionDefinition
     {
         $ast = std::move($fn.ast);
-        if ($a1.ctx != nullptr) { $ast->add_attribute(std::move($a1.ast)); }
-        if ($a11.ctx != nullptr) { $ast->add_attribute(std::move($a11.ast)); }
     }
-    | (a2=attribute)? decl=functionDeclaration (a12=attribute)? SEMICOLON
+    |  decl=functionDeclaration
     {
        $ast = std::move($decl.ast);
-        if ($a2.ctx != nullptr) { $ast->add_attribute(std::move($a2.ast)); }
-        if ($a12.ctx != nullptr) { $ast->add_attribute(std::move($a12.ast)); }
     }
-    | (a0=attribute)? var=globalVariableDeclaration (a10=attribute)? SEMICOLON
+    | var=globalVariableDeclaration
     {
         $ast = std::move($var.ast);
-        if ($a0.ctx != nullptr) { $ast->add_attribute(std::move($a0.ast)); }
-        if ($a10.ctx != nullptr) { $ast->add_attribute(std::move($a10.ast)); }
     }
-    | (a3=attribute)? sdc=structDeclaration (a13=attribute)? SEMICOLON
+    | sdc=structDeclaration
     {
         $ast = std::move($sdc.ast);
-        if ($a3.ctx != nullptr) { $ast->add_attribute(std::move($a3.ast)); }
-        if ($a13.ctx != nullptr) { $ast->add_attribute(std::move($a13.ast)); }
     }
-    | (a4=attribute)? sdf=structDefinition (a14=attribute)? SEMICOLON
+    | sdc=structDeclaration
+    {
+        $ast = std::move($sdc.ast);
+    }
+    | sdf=structDefinition
     {
         $ast = std::move($sdf.ast);
-        if ($a4.ctx != nullptr) { $ast->add_attribute(std::move($a4.ast)); }
-        if ($a14.ctx != nullptr) { $ast->add_attribute(std::move($a14.ast)); }
     }
-    | (a5=attribute)? ud=unionDeclaration (a15=attribute)? SEMICOLON
+    | ud=unionDeclaration
     {
         $ast = std::move($ud.ast);
-        if ($a5.ctx != nullptr) { $ast->add_attribute(std::move($a5.ast)); }
-        if ($a15.ctx != nullptr) { $ast->add_attribute(std::move($a15.ast)); }
     }
-    | (a6=attribute)? udf=unionDefinition (a16=attribute)? SEMICOLON
+    | udf=unionDefinition
     {
         $ast = std::move($udf.ast);
-        if ($a6.ctx != nullptr) { $ast->add_attribute(std::move($a6.ast)); }
-        if ($a16.ctx != nullptr) { $ast->add_attribute(std::move($a16.ast)); }
+    }
+    ;
+
+globalDeclaration returns [ std::unique_ptr<Declaration> ast ]
+    : g=globalDeclarationHelper SEMICOLON
+    {
+        $ast = std::move($g.ast);
     }
     | td=typedef SEMICOLON
         {
@@ -101,31 +121,65 @@ globalDeclaration returns [ std::unique_ptr<Declaration> ast ]
         }
     ;
 
-attribute returns [ std::unique_ptr<Attribute> ast ]
+attribute returns [ std::vector<std::unique_ptr<Attribute>> ast ]
     : ATTRIBUTE LPAREN LPAREN s=attributeContent RPAREN RPAREN
     {
         Token *symbol = $ctx->ATTRIBUTE()->getSymbol();
-        $ast = std::make_unique<Attribute>(symbol->getLine(), symbol->getCharPositionInLine(), $s.s);
+        std::vector<std::unique_ptr<Attribute>> erg;
+        for (auto s: $s.v) {
+            erg.push_back(std::move(std::make_unique<Attribute>(symbol->getLine(), symbol->getCharPositionInLine(), s)));
+        }
+        $ast = std::move(erg);
     }
     ;
 
-attributeContent returns [ std::string s ]
+assembly returns [ std::unique_ptr<Assembly> ast ]
+    : ASSEMBLY LPAREN s=assemblyContent RPAREN
+    {
+        Token *symbol = $ctx->ASSEMBLY()->getSymbol();
+        $ast = std::make_unique<Assembly>(symbol->getLine(), symbol->getCharPositionInLine(), $s.s);
+    }
+    ;
+
+assemblyContent returns [ std::vector<std::string> s ]
+    : (c+=string)*
+    {
+        $s.reserve($c.size());
+        for (int i = 0; i < $c.size(); i++) {
+            $s.push_back($c[i]->s);
+        }
+    }
+    ;
+
+attributeContent returns [ std::vector<std::string> v ]
     : id=identifier
     {
-        $s = $id.ast->name;
+        $v = { $id.ast->name };
     }
     | c=constant
     {
-        $s = $c.ast->value;
+        $v = { $c.ast->value };
     }
-    | a1=attributeContent a2=attributeContent
+    | a1=attributeContent COMMA a2=attributeContent
     {
-        $s = $a1.s + " " + $a2.s;
+        $a1.v.insert($a1.v.end(), $a2.v.begin(), $a2.v.end());
+        $v = $a1.v;
     }
-    | LPAREN a3=attributeContent RPAREN
+    |  a3=attributeContent LPAREN a4=attributeContent RPAREN
     {
-            $s = "(" + $a3.s + ")";
+        $a3.v.back() += "(";
+        bool first = true;
+        for (auto s: $a4.v) {
+            if (first) {
+                first = false;
+            } else {
+                $a3.v.back() += ',';
+            }
+            $a3.v.back() += s;
         }
+        $a3.v.back() += ")";
+        $v = $a3.v;
+    }
     ;
 
 fnTypeWithoutReturn returns [ std::unique_ptr<Identifier> ast ]
@@ -340,6 +394,16 @@ parameterDeclaration returns [ std::unique_ptr<Identifier> ast ]
     {
         $ast = std::move($id.ast);
     }
+    | p=parameterDeclaration LBRACK (exp=expression)? RBRACK
+    {
+        $ast = std::move($p.ast);
+
+        if ($exp.ctx != nullptr) {
+            $ast->type()->add_array_dimension(std::move($exp.ast));
+        } else {
+            $ast->type()->add_array_dimension(std::move($exp.ast));
+        }
+    }
     ;
 
 functionDefinition returns [ std::unique_ptr<FunctionDefinition> ast ]
@@ -379,7 +443,6 @@ variableDeclaration returns [ std::unique_ptr<VariableDeclaration> ast ]
                     $ast->type()->set_array_dimension(i, std::move($exp[i]->ast));
                 }
         }
-
     }
     | id=identifier_with_type (lb+=LBRACK (ex+=expression)? RBRACK)* EQUAL expression
         {
@@ -570,7 +633,20 @@ primitiveTypeHelper returns [ std::unique_ptr <PrimitiveType> ast ]
         $ast = std::make_unique<PrimitiveType>(symbol->getLine(), symbol->getCharPositionInLine());
         $ast->add_keyword(PrimitiveType::KeyWords::VA_LIST);
     }
+    ;
 
+string returns [ std::string s ]
+    : STRING
+    {
+        std::stringstream s;
+        for (char ch : $ctx->STRING()->getText()) {
+            if (ch != '"') {
+                s << ch;
+            }
+        }
+
+        $s = s.str();
+    }
     ;
 
 // Lexer
@@ -579,6 +655,8 @@ WHITESPACE: (' ' | '\t' | '\r' | '\n') -> skip;
 PRE_PROCESSOR_OUTPUT: '#' ~('\n'|'\r')* '\r'? '\n' -> skip;
 COMMENT: '//' ~('\n'|'\r')* '\r'? '\n' -> skip;
 COMMENT1: '/*' .*? '*/' -> skip;
+
+STRING: '"' ~('"')* '"';
 
 EXTERN: 'extern';
 STATIC: 'static';
@@ -602,6 +680,7 @@ RETURN: 'return';
 CONST: 'const';
 RESTRICT: 'restrict' | '__restrict' | '__restrict__';
 ATTRIBUTE: '__attribute__';
+ASSEMBLY: '__asm__';
 
 VA_ARGS: '...';
 

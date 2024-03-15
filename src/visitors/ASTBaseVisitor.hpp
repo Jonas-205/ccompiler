@@ -37,6 +37,9 @@ class ASTBaseVisitor : public ASTVisitor {
         return nullptr;
     }
     void *visit(VariableDeclaration &node, void *args) override {
+        for(auto &ass: node.assembly) {
+            ass->accept(*this, args);
+        }
         for (auto &attr : node.attributes) {
             attr->accept(*this, args);
         }
@@ -50,6 +53,9 @@ class ASTBaseVisitor : public ASTVisitor {
         return nullptr;
     }
     void *visit(FunctionDefinition &node, void *args) override {
+        for(auto &ass: node.assembly) {
+            ass->accept(*this, args);
+        }
         for (auto &attr : node.attributes) {
             attr->accept(*this, args);
         }
@@ -62,6 +68,9 @@ class ASTBaseVisitor : public ASTVisitor {
     }
     void *visit(FunctionDeclaration &node, void *args) override {
 
+        for(auto &ass: node.assembly) {
+            ass->accept(*this, args);
+        }
         for (auto &attr : node.attributes) {
             attr->accept(*this, args);
         }
@@ -128,6 +137,9 @@ class ASTBaseVisitor : public ASTVisitor {
         return nullptr;
     }
     void *visit(StructType &node, void *args) override {
+        for(auto &ass: node.assembly) {
+            ass->accept(*this, args);
+        }
         for (auto &attr : node.attributes) {
             attr->accept(*this, args);
         }
@@ -143,6 +155,9 @@ class ASTBaseVisitor : public ASTVisitor {
         return nullptr;
     }
     void *visit(UnionType &node, void *args) override {
+        for(auto &ass: node.assembly) {
+            ass->accept(*this, args);
+        }
         for (auto &attr : node.attributes) {
             attr->accept(*this, args);
         }
@@ -158,6 +173,9 @@ class ASTBaseVisitor : public ASTVisitor {
         return nullptr;
     }
     void *visit(Attribute &node, void *args) override {
+        return nullptr;
+    }
+    void *visit(Assembly &node, void *args) override {
         return nullptr;
     }
 };
