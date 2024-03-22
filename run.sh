@@ -32,7 +32,12 @@ make -j 16
 # Run
 cd ..
 clear
-./"$BUILD_DIR"/ccomp examples/problems.c --dot foo.dot
+# ./"$BUILD_DIR"/ccomp examples/fn_ptr.c --dot foo.dot
+# ./"$BUILD_DIR"/ccomp examples/problems.c --dot foo.dot
+# ./"$BUILD_DIR"/ccomp examples/while.c --dot foo.dot
+# ./"$BUILD_DIR"/ccomp examples/switch.c --dot foo.dot
+./"$BUILD_DIR"/ccomp examples/fib_mem.c --dot foo.dot
+# ./"$BUILD_DIR"/ccomp examples/logger.c --dot foo.dot
 
 # dot file
 dot foo.dot -Tpdf > foo.pdf

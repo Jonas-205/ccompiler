@@ -41,5 +41,15 @@ std::string exec(const std::string &command) {
     return result;
 }
 
+std::string write_file(const std::string &path, const std::string &content) {
+    trace("Writing file %s", path.c_str());
+    std::ofstream file_stream(path);
+    if (!file_stream) {
+        die("Could not open file: %s", path.c_str());
+    }
+    file_stream << content;
+    return path;
+}
+
 }  // namespace IO
 }  // namespace CCOMP

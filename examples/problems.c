@@ -1,3 +1,7 @@
-extern int fscanf (FILE *__restrict __stream, const char *__restrict __format, ...) __asm__ ("" "__isoc99_fscanf")
+static __attribute__((always_inline)) inline int jcl_color_attribute(FILE *out, JclColorAttribute attr) {
+    return fprintf(out, "\033[%dm", attr);
+}
 
-                                __attribute__ ((__nonnull__ (1)));
+int foo(char arg[]){
+
+}

@@ -53,21 +53,24 @@ void *DotVisitor::visit(Program &node, void *args) {
     node_stack.pop();                  \
     return nullptr;
 
-#define GENERATE_TYPE(name)                                                  \
-    std::string arr = "";                                                    \
-    for (int i = 0; i < node.array_dimensions; i++) {                        \
-        arr += "[]";                                                         \
-    }                                                                        \
-    int id = node_counter++;                                                 \
-    std::string r = (node.is_restrict ? "restrict " : "");                   \
-    std::string c = (node.is_const ? "const " : "");                         \
-    declare_node(                                                            \
-        id, c + r + std::string(name) + (node.is_pointer ? "*" : "") + arr); \
-    int parent = node_stack.top();                                           \
-    connect_nodes(parent, id);                                               \
-    node_stack.push(id);                                                     \
-    ASTBaseVisitor::visit(node, args);                                       \
-    node_stack.pop();                                                        \
+#define GENERATE_TYPE(name)                                \
+    std::string arr = "";                                  \
+    for (int i = 0; i < node.array_dimensions; i++) {      \
+        arr += "[]";                                       \
+    }                                                      \
+    int id = node_counter++;                               \
+    std::string r = (node.is_restrict ? "restrict " : ""); \
+    std::string c = (node.is_const ? "const " : "");       \
+    std::string p = "";                                    \
+    for (int i = 0; i < node.pointer_count; i++) {         \
+        p += "*";                                          \
+    }                                                      \
+    declare_node(id, c + r + std::string(name) + p + arr); \
+    int parent = node_stack.top();                         \
+    connect_nodes(parent, id);                             \
+    node_stack.push(id);                                   \
+    ASTBaseVisitor::visit(node, args);                     \
+    node_stack.pop();                                      \
     return nullptr;
 
 void *DotVisitor::visit(FunctionDeclaration &node, void *args) {
@@ -129,10 +132,6 @@ void *DotVisitor::visit(ArrayInitializationList &node, void *args) {
     GENERATE("Array Init");
 };
 
-void *DotVisitor::visit(SizeOf &node, void *args) {
-    GENERATE("SizeOf");
-};
-
 void *DotVisitor::visit(FunctionType &node, void *args) {
     GENERATE_TYPE(std::string("FunctionType") + (node.varargs ? "..." : ""));
 };
@@ -150,9 +149,55 @@ void *DotVisitor::visit(Attribute &node, void *args) {
 void *DotVisitor::visit(Assembly &node, void *args) {
     std::stringstream s;
     for (auto &i : node.assembly) {
-        s << "\\\"" << i << "\\\"" << "\n";
+        s << "\\\"" << i << "\\\""
+          << "\n";
     }
     GENERATE("Asm: " + s.str());
+};
+void *DotVisitor::visit(If &node, void *args) {
+    GENERATE("If");
+};
+void *DotVisitor::visit(ArrayAccess &node, void *args) {
+    GENERATE("ArrayAccess");
+};
+void *DotVisitor::visit(StructAccess &node, void *args) {
+    GENERATE(std::string("StructAccess") + (node.through_pointer ? " (ptr)" : ""));
+};
+void *DotVisitor::visit(Assignment &node, void *args) {
+    GENERATE("=");
+};
+void *DotVisitor::visit(For &node, void *args) {
+    GENERATE("For");
+};
+void *DotVisitor::visit(TypeCast &node, void *args) {
+    GENERATE("TypeCast");
+};
+void *DotVisitor::visit(TernaryExpression &node, void *args) {
+    GENERATE("Ternary");
+};
+void *DotVisitor::visit(OperationAssignment &node, void *args) {
+    GENERATE(node.op_to_str());
+};
+void *DotVisitor::visit(ExpressionList &node, void *args) {
+    GENERATE(",");
+};
+void *DotVisitor::visit(EnumType &node, void *args) {
+    GENERATE_TYPE("enum");
+};
+void *DotVisitor::visit(EnumValue &node, void *args) {
+    GENERATE("EnumValue");
+};
+void *DotVisitor::visit(While &node, void *args) {
+    GENERATE("While");
+};
+void *DotVisitor::visit(DoWhile &node, void *args) {
+    GENERATE("DoWhile");
+};
+void *DotVisitor::visit(Switch &node, void *args) {
+    GENERATE("Switch");
+};
+void *DotVisitor::visit(SwitchBlock &node, void *args) {
+    GENERATE(std::string(node.is_default ? "default" : "case") + std::string(node.break_after ? " (break)" : ""));
 };
 
 }  // namespace CCOMP::AST

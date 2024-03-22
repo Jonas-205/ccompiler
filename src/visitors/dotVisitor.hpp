@@ -23,11 +23,25 @@ class DotVisitor : public ASTBaseVisitor {
     void *visit(TypeDef &node, void *args) override;
     void *visit(NamedType &node, void *args) override;
     void *visit(ArrayInitializationList &node, void *args) override;
-    void *visit(SizeOf &node, void *args) override;
     void *visit(FunctionType &node, void *args) override;
     void *visit(StructType &node, void *args) override;
     void *visit(UnionType &node, void *args) override;
     void *visit(Attribute &node, void *args) override;
     void *visit(Assembly &node, void *args) override;
+    void *visit(If &node, void *args) override;
+    void *visit(ArrayAccess &node, void *args) override;
+    void *visit(StructAccess &node, void *args) override;
+    void *visit(Assignment &node, void *args) override;
+    void *visit(For &node, void *args) override;
+    void *visit(TypeCast &node, void *args) override;
+    void *visit(TernaryExpression &node, void *args) override;
+    void *visit(OperationAssignment &node, void *args) override;
+    void *visit(ExpressionList &node, void *args) override;
+    void *visit(EnumType &node, void *args) override;
+    void *visit(EnumValue &node, void *args) override;
+    void *visit(While &node, void *args) override;
+    void *visit(DoWhile &node, void *args) override;
+    void *visit(Switch &node, void *args) override;
+    void *visit(SwitchBlock &node, void *args) override;
 };
 }  // namespace CCOMP::AST

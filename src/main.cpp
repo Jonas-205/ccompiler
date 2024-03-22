@@ -16,7 +16,8 @@ void run(const Arguments &args) {
         return;
     }
 
-    /* std::string file_content = CCOMP::IO::read_file(args.source_path); */
+    CCOMP::IO::write_file("foo.pre.c", file_content);
+    /*     std::string file_content = CCOMP::IO::read_file(args.source_path); */
 
     auto ast = parse(file_content);
     ast->file_location = args.source_path;
